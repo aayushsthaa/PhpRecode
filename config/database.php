@@ -1,13 +1,13 @@
 <?php
-// Database configuration for MySQL
-define('DB_HOST', $_ENV['DB_HOST'] ?? 'localhost');
-define('DB_NAME', $_ENV['DB_NAME'] ?? 'echhapa_cms');
-define('DB_USER', $_ENV['DB_USER'] ?? 'root');
-define('DB_PASS', $_ENV['DB_PASS'] ?? '');
-define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
+// Database configuration for PostgreSQL (Replit compatible)
+define('DB_HOST', $_ENV['PGHOST'] ?? 'localhost');
+define('DB_NAME', $_ENV['PGDATABASE'] ?? 'echhapa_cms');
+define('DB_USER', $_ENV['PGUSER'] ?? 'postgres');
+define('DB_PASS', $_ENV['PGPASSWORD'] ?? '');
+define('DB_PORT', $_ENV['PGPORT'] ?? '5432');
 
 try {
-    $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+    $dsn = "pgsql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME;
     $pdo = new PDO($dsn, DB_USER, DB_PASS);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);

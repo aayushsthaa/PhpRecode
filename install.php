@@ -1,12 +1,6 @@
 <?php
 // Echhapa CMS Installation Script
 
-// Auto-install if not already installed
-if (!file_exists('config/installed.lock')) {
-    // Automatic installation with predefined admin account
-    autoInstall();
-}
-
 function autoInstall() {
     $errors = [];
     
@@ -74,6 +68,12 @@ function autoInstall() {
     } catch (Exception $e) {
         die('<h1>Installation Error</h1><p>Auto-installation failed: ' . htmlspecialchars($e->getMessage()) . '</p><p>Please check your database configuration and try again.</p>');
     }
+}
+
+// Auto-install if not already installed
+if (!file_exists('config/installed.lock')) {
+    // Automatic installation with predefined admin account
+    autoInstall();
 }
 
 // Check if already installed (after auto-install attempt)
