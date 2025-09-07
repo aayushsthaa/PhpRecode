@@ -16,32 +16,35 @@ $path = $parsedUrl['path'];
 // Remove query string from path
 $path = strtok($path, '?');
 
-// If it's a file request (CSS, JS, images), serve it directly
+// If it's a static file request (CSS, JS, images), serve it directly
 if ($path !== '/' && file_exists($documentRoot . $path)) {
     $extension = pathinfo($path, PATHINFO_EXTENSION);
     
-    // Set appropriate content type
-    $contentTypes = [
-        'css' => 'text/css',
-        'js' => 'application/javascript',
-        'png' => 'image/png',
-        'jpg' => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'gif' => 'image/gif',
-        'svg' => 'image/svg+xml',
-        'ico' => 'image/x-icon',
-        'woff' => 'font/woff',
-        'woff2' => 'font/woff2',
-        'ttf' => 'font/ttf',
-        'eot' => 'application/vnd.ms-fontobject'
-    ];
-    
-    if (isset($contentTypes[$extension])) {
-        header('Content-Type: ' . $contentTypes[$extension]);
+    // Only serve non-PHP files directly
+    if ($extension !== 'php') {
+        // Set appropriate content type
+        $contentTypes = [
+            'css' => 'text/css',
+            'js' => 'application/javascript',
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'svg' => 'image/svg+xml',
+            'ico' => 'image/x-icon',
+            'woff' => 'font/woff',
+            'woff2' => 'font/woff2',
+            'ttf' => 'font/ttf',
+            'eot' => 'application/vnd.ms-fontobject'
+        ];
+        
+        if (isset($contentTypes[$extension])) {
+            header('Content-Type: ' . $contentTypes[$extension]);
+        }
+        
+        readfile($documentRoot . $path);
+        return;
     }
-    
-    readfile($documentRoot . $path);
-    return;
 }
 
 // Route to appropriate PHP file
