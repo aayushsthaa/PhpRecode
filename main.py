@@ -2903,9 +2903,23 @@ def articles_management():
 
 @app.route('/admin/articles/add')
 def add_article():
-    """Add New Article Form"""
+    """Advanced Article Editor with Rich Text and Multiple Images"""
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
+    
+    # Get categories for the dropdown
+    conn = get_db()
+    categories = []
+    
+    if conn:
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cur.execute("SELECT * FROM categories WHERE is_active = TRUE ORDER BY name")
+            categories = cur.fetchall()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error fetching categories: {e}")
     
     return render_template_string("""
 <!DOCTYPE html>
@@ -2913,9 +2927,10 @@ def add_article():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add New Article - Echhapa CMS</title>
+    <title>Create New Article - Echhapa CMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
     <style>
         :root {
             --sidebar-width: 280px;
@@ -2929,6 +2944,22 @@ def add_article():
         .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1.5rem; display: flex; align-items: center; text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent; }
         .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
         .nav-link i { width: 20px; margin-right: 0.75rem; }
+        
+        .image-gallery { border: 2px dashed #dee2e6; border-radius: 0.5rem; padding: 2rem; text-align: center; background: #fafafa; transition: all 0.3s ease; }
+        .image-gallery:hover { border-color: var(--accent-color); background: #f0f8ff; }
+        .image-preview { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; }
+        .image-item { position: relative; width: 150px; height: 150px; border-radius: 0.5rem; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .image-item img { width: 100%; height: 100%; object-fit: cover; }
+        .image-remove { position: absolute; top: 5px; right: 5px; background: rgba(220, 53, 69, 0.9); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 0.75rem; }
+        .image-item:hover .image-remove { background: #dc3545; }
+        
+        .article-tabs .nav-link { color: #6c757d; border: none; background: none; }
+        .article-tabs .nav-link.active { color: var(--primary-color); border-bottom: 2px solid var(--accent-color); }
+        
+        .seo-preview { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1rem; }
+        .seo-title { color: #1a0dab; font-size: 1.125rem; text-decoration: none; }
+        .seo-url { color: #006621; font-size: 0.875rem; }
+        .seo-description { color: #545454; font-size: 0.875rem; }
     </style>
 </head>
 <body>
@@ -2952,62 +2983,375 @@ def add_article():
 
     <div class="main-content">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1><i class="fas fa-plus me-3"></i>Create New Article</h1>
-            <a href="{{ url_for('articles_management') }}" class="btn btn-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Articles</a>
+            <div>
+                <h1><i class="fas fa-plus me-3"></i>Create New Article</h1>
+                <p class="lead mb-0">Write and publish engaging news articles with rich media</p>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-outline-secondary" onclick="saveDraft()"><i class="fas fa-save me-2"></i>Save Draft</button>
+                <button class="btn btn-primary" onclick="publishArticle()"><i class="fas fa-paper-plane me-2"></i>Publish</button>
+                <a href="{{ url_for('articles_management') }}" class="btn btn-secondary"><i class="fas fa-arrow-left me-2"></i>Back</a>
+            </div>
         </div>
 
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
+        <form id="articleForm" class="row">
+            <div class="col-lg-8">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <form>
-                            <div class="mb-3">
-                                <label class="form-label">Article Title</label>
-                                <input type="text" class="form-control" placeholder="Enter article title">
+                        <!-- Article Tabs -->
+                        <ul class="nav nav-tabs article-tabs mb-4">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#content-tab"><i class="fas fa-edit me-2"></i>Content</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#media-tab"><i class="fas fa-images me-2"></i>Media Gallery</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#seo-tab"><i class="fas fa-search me-2"></i>SEO</a>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content">
+                            <!-- Content Tab -->
+                            <div class="tab-pane fade show active" id="content-tab">
+                                <div class="mb-3">
+                                    <label class="form-label">Article Title <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-lg" id="articleTitle" placeholder="Enter compelling article title..." oninput="updateSeoPreview()">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Excerpt/Summary</label>
+                                    <textarea class="form-control" id="articleExcerpt" rows="3" placeholder="Brief summary of the article (will be shown in article lists and search results)" oninput="updateSeoPreview()"></textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Article Content <span class="text-danger">*</span></label>
+                                    <textarea id="articleContent" name="content" placeholder="Write your article content here..."></textarea>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Content</label>
-                                <textarea class="form-control" rows="10" placeholder="Write your article content here..."></textarea>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">Category</label>
-                                        <select class="form-control">
-                                            <option>Select category</option>
-                                            <option>Technology</option>
-                                            <option>Business</option>
-                                            <option>Sports</option>
-                                            <option>Entertainment</option>
-                                        </select>
+
+                            <!-- Media Gallery Tab -->
+                            <div class="tab-pane fade" id="media-tab">
+                                <div class="mb-4">
+                                    <label class="form-label">Featured Image</label>
+                                    <div class="image-gallery" onclick="document.getElementById('featuredImage').click()">
+                                        <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+                                        <p class="text-muted mb-0">Click to upload featured image</p>
+                                        <small class="text-muted">Recommended: 1200x630px, max 5MB</small>
+                                        <input type="file" id="featuredImage" hidden accept="image/*" onchange="handleFeaturedImage(this)">
+                                        <div id="featuredPreview"></div>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label">Status</label>
-                                        <select class="form-control">
-                                            <option>Published</option>
-                                            <option>Draft</option>
-                                        </select>
+
+                                <div class="mb-4">
+                                    <label class="form-label">Article Images Gallery</label>
+                                    <div class="image-gallery" onclick="document.getElementById('articleImages').click()">
+                                        <i class="fas fa-images fa-3x text-muted mb-2"></i>
+                                        <p class="text-muted mb-0">Click to upload multiple images</p>
+                                        <small class="text-muted">You can select multiple images at once</small>
+                                        <input type="file" id="articleImages" hidden accept="image/*" multiple onchange="handleArticleImages(this)">
+                                    </div>
+                                    <div id="imagePreview" class="image-preview"></div>
+                                </div>
+                            </div>
+
+                            <!-- SEO Tab -->
+                            <div class="tab-pane fade" id="seo-tab">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">SEO Title</label>
+                                            <input type="text" class="form-control" id="seoTitle" placeholder="Custom SEO title (leave blank to use article title)" oninput="updateSeoPreview()">
+                                            <small class="text-muted">Recommended: 50-60 characters</small>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Meta Description</label>
+                                            <textarea class="form-control" id="metaDescription" rows="3" placeholder="Brief description for search engines" oninput="updateSeoPreview()"></textarea>
+                                            <small class="text-muted">Recommended: 150-160 characters</small>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label">Tags</label>
+                                            <input type="text" class="form-control" id="articleTags" placeholder="news, politics, economy (comma-separated)">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Search Result Preview</label>
+                                        <div id="seoPreview" class="seo-preview">
+                                            <div class="seo-title">Your Article Title Will Appear Here</div>
+                                            <div class="seo-url">https://echhapa.com/article/your-article-title</div>
+                                            <div class="seo-description">Your article description or excerpt will appear here in search results...</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Featured Image</label>
-                                <input type="file" class="form-control" accept="image/*">
-                            </div>
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Publish Article</button>
-                        </form>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+
+            <div class="col-lg-4">
+                <!-- Publishing Options -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Publishing Options</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Category <span class="text-danger">*</span></label>
+                            <select class="form-control" id="articleCategory" required>
+                                <option value="">Select category</option>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Author</label>
+                            <input type="text" class="form-control" id="articleAuthor" value="Admin" readonly>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Publication Date</label>
+                            <input type="datetime-local" class="form-control" id="publishDate" value="{{ now }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="isFeatured">
+                                <label class="form-check-label" for="isFeatured">
+                                    Featured Article
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="allowComments" checked>
+                                <label class="form-check-label" for="allowComments">
+                                    Allow Comments
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Article Stats -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Article Stats</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Word Count:</span>
+                            <span id="wordCount">0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Reading Time:</span>
+                            <span id="readingTime">0 min</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Images:</span>
+                            <span id="imageCount">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let uploadedImages = [];
+        let featuredImageFile = null;
+
+        // Initialize TinyMCE Rich Text Editor
+        tinymce.init({
+            selector: '#articleContent',
+            height: 500,
+            plugins: [
+                'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                'insertdatetime', 'media', 'table', 'help', 'wordcount', 'emoticons'
+            ],
+            toolbar: 'undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | link image media table | emoticons charmap | preview code fullscreen',
+            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif; font-size: 16px; line-height: 1.6; }',
+            image_advtab: true,
+            paste_data_images: true,
+            automatic_uploads: true,
+            file_picker_types: 'image',
+            setup: function (editor) {
+                editor.on('keyup change', function () {
+                    updateStats();
+                });
+            }
+        });
+
+        // Handle featured image upload
+        function handleFeaturedImage(input) {
+            const file = input.files[0];
+            if (file) {
+                featuredImageFile = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('featuredPreview').innerHTML = 
+                        `<div class="image-item mt-3">
+                            <img src="${e.target.result}" alt="Featured image">
+                            <button type="button" class="image-remove" onclick="removeFeaturedImage()">×</button>
+                        </div>`;
+                };
+                reader.readAsDataURL(file);
+                updateStats();
+            }
+        }
+
+        // Handle multiple article images upload
+        function handleArticleImages(input) {
+            const files = Array.from(input.files);
+            files.forEach(file => {
+                uploadedImages.push(file);
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imageIndex = uploadedImages.length - 1;
+                    const imageDiv = document.createElement('div');
+                    imageDiv.className = 'image-item';
+                    imageDiv.innerHTML = 
+                        `<img src="${e.target.result}" alt="Article image">
+                         <button type="button" class="image-remove" onclick="removeImage(${imageIndex})">×</button>`;
+                    document.getElementById('imagePreview').appendChild(imageDiv);
+                };
+                reader.readAsDataURL(file);
+            });
+            updateStats();
+        }
+
+        // Remove featured image
+        function removeFeaturedImage() {
+            featuredImageFile = null;
+            document.getElementById('featuredPreview').innerHTML = '';
+            document.getElementById('featuredImage').value = '';
+            updateStats();
+        }
+
+        // Remove article image
+        function removeImage(index) {
+            uploadedImages.splice(index, 1);
+            updateImagePreviews();
+            updateStats();
+        }
+
+        // Update image previews after removal
+        function updateImagePreviews() {
+            const previewDiv = document.getElementById('imagePreview');
+            previewDiv.innerHTML = '';
+            uploadedImages.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imageDiv = document.createElement('div');
+                    imageDiv.className = 'image-item';
+                    imageDiv.innerHTML = 
+                        `<img src="${e.target.result}" alt="Article image">
+                         <button type="button" class="image-remove" onclick="removeImage(${index})">×</button>`;
+                    previewDiv.appendChild(imageDiv);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Update SEO preview
+        function updateSeoPreview() {
+            const title = document.getElementById('seoTitle').value || document.getElementById('articleTitle').value || 'Your Article Title Will Appear Here';
+            const description = document.getElementById('metaDescription').value || document.getElementById('articleExcerpt').value || 'Your article description or excerpt will appear here in search results...';
+            const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            
+            document.querySelector('.seo-title').textContent = title;
+            document.querySelector('.seo-url').textContent = `https://echhapa.com/article/${slug}`;
+            document.querySelector('.seo-description').textContent = description;
+        }
+
+        // Update article stats
+        function updateStats() {
+            // Get content from TinyMCE
+            const content = tinymce.get('articleContent')?.getContent({format: 'text'}) || '';
+            const words = content.trim() ? content.trim().split(/\\s+/).length : 0;
+            const readingTime = Math.ceil(words / 200); // Average reading speed
+            const imageCount = (featuredImageFile ? 1 : 0) + uploadedImages.length;
+
+            document.getElementById('wordCount').textContent = words;
+            document.getElementById('readingTime').textContent = readingTime + ' min';
+            document.getElementById('imageCount').textContent = imageCount;
+        }
+
+        // Save as draft
+        function saveDraft() {
+            const formData = collectFormData();
+            formData.status = 'draft';
+            submitArticle(formData, 'Article saved as draft successfully!');
+        }
+
+        // Publish article
+        function publishArticle() {
+            const formData = collectFormData();
+            if (!validateForm(formData)) {
+                return;
+            }
+            formData.status = 'published';
+            submitArticle(formData, 'Article published successfully!');
+        }
+
+        // Collect form data
+        function collectFormData() {
+            return {
+                title: document.getElementById('articleTitle').value,
+                content: tinymce.get('articleContent').getContent(),
+                excerpt: document.getElementById('articleExcerpt').value,
+                category_id: document.getElementById('articleCategory').value,
+                author: document.getElementById('articleAuthor').value,
+                publish_date: document.getElementById('publishDate').value,
+                is_featured: document.getElementById('isFeatured').checked,
+                allow_comments: document.getElementById('allowComments').checked,
+                seo_title: document.getElementById('seoTitle').value,
+                meta_description: document.getElementById('metaDescription').value,
+                tags: document.getElementById('articleTags').value,
+                featured_image: featuredImageFile,
+                images: uploadedImages
+            };
+        }
+
+        // Validate form
+        function validateForm(data) {
+            if (!data.title.trim()) {
+                alert('Please enter an article title');
+                return false;
+            }
+            if (!data.content.trim()) {
+                alert('Please enter article content');
+                return false;
+            }
+            if (!data.category_id) {
+                alert('Please select a category');
+                return false;
+            }
+            return true;
+        }
+
+        // Submit article
+        function submitArticle(data, successMessage) {
+            // Here you would submit to your backend
+            alert(successMessage);
+        }
+
+        // Set current date/time
+        document.getElementById('publishDate').value = new Date().toISOString().slice(0, 16);
+        
+        // Update stats periodically
+        setInterval(updateStats, 2000);
+    </script>
 </body>
 </html>
-    """)
+    """, categories=categories, now=datetime.now().strftime('%Y-%m-%dT%H:%M'))
 
 @app.route('/admin/layout')
 def layout_management():
