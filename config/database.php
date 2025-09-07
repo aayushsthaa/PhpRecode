@@ -1,13 +1,13 @@
 <?php
-// Database configuration for MySQL
-define('DB_HOST', $_ENV['DB_HOST'] ?? 'localhost');
-define('DB_NAME', $_ENV['DB_NAME'] ?? 'echhapa_cms');
-define('DB_USER', $_ENV['DB_USER'] ?? 'root');
-define('DB_PASS', $_ENV['DB_PASS'] ?? '');
-define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
+// Database configuration for PostgreSQL
+define('DB_HOST', $_ENV['PGHOST'] ?? 'localhost');
+define('DB_NAME', $_ENV['PGDATABASE'] ?? 'echhapa_cms');
+define('DB_USER', $_ENV['PGUSER'] ?? 'postgres');
+define('DB_PASS', $_ENV['PGPASSWORD'] ?? '');
+define('DB_PORT', $_ENV['PGPORT'] ?? '5432');
 
 try {
-    $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+    $dsn = "pgsql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";";
     $pdo = new PDO($dsn, DB_USER, DB_PASS);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
@@ -20,29 +20,28 @@ function createTables($pdo) {
     $tables = [
         // Users table
         "CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             username VARCHAR(50) UNIQUE NOT NULL,
             email VARCHAR(100) UNIQUE NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
-            role ENUM('admin', 'editor', 'author') DEFAULT 'author',
+            role VARCHAR(20) DEFAULT 'author' CHECK (role IN ('admin', 'editor', 'author')),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         
         // Categories table
         "CREATE TABLE IF NOT EXISTS categories (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             name VARCHAR(100) NOT NULL,
             slug VARCHAR(100) UNIQUE NOT NULL,
             description TEXT,
-            parent_id INT DEFAULT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
+            parent_id INTEGER DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         
         // Tags table
         "CREATE TABLE IF NOT EXISTS tags (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             name VARCHAR(50) UNIQUE NOT NULL,
             slug VARCHAR(50) UNIQUE NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -50,88 +49,81 @@ function createTables($pdo) {
         
         // Articles table
         "CREATE TABLE IF NOT EXISTS articles (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             title VARCHAR(255) NOT NULL,
             slug VARCHAR(255) UNIQUE NOT NULL,
             excerpt TEXT,
-            content LONGTEXT NOT NULL,
+            content TEXT NOT NULL,
             featured_image VARCHAR(255),
-            author_id INT NOT NULL,
-            category_id INT,
-            status ENUM('draft', 'published', 'scheduled') DEFAULT 'draft',
+            author_id INTEGER NOT NULL,
+            category_id INTEGER,
+            status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'scheduled')),
             published_at TIMESTAMP NULL,
-            views INT DEFAULT 0,
+            views INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         
         // Article tags relationship
         "CREATE TABLE IF NOT EXISTS article_tags (
-            article_id INT,
-            tag_id INT,
-            PRIMARY KEY (article_id, tag_id),
-            FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE,
-            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+            article_id INTEGER,
+            tag_id INTEGER,
+            PRIMARY KEY (article_id, tag_id)
         )",
         
         // Homepage sections
         "CREATE TABLE IF NOT EXISTS homepage_sections (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             name VARCHAR(100) NOT NULL,
             slug VARCHAR(100) UNIQUE NOT NULL,
-            layout_type ENUM('featured', 'grid', 'list', 'carousel') DEFAULT 'grid',
-            max_articles INT DEFAULT 6,
-            sort_order INT DEFAULT 0,
-            is_active TINYINT(1) DEFAULT 1,
+            layout_type VARCHAR(20) DEFAULT 'grid' CHECK (layout_type IN ('featured', 'grid', 'list', 'carousel')),
+            max_articles INTEGER DEFAULT 6,
+            sort_order INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         
         // Section articles relationship
         "CREATE TABLE IF NOT EXISTS section_articles (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            section_id INT NOT NULL,
-            article_id INT NOT NULL,
-            position INT DEFAULT 0,
-            is_featured TINYINT(1) DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (section_id) REFERENCES homepage_sections(id) ON DELETE CASCADE,
-            FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
+            id SERIAL PRIMARY KEY,
+            section_id INTEGER NOT NULL,
+            article_id INTEGER NOT NULL,
+            position INTEGER DEFAULT 0,
+            is_featured BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         
         // Sidebar widgets
         "CREATE TABLE IF NOT EXISTS sidebar_widgets (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             title VARCHAR(100),
-            widget_type ENUM('recent_articles', 'popular_articles', 'categories', 'tags', 'custom_html', 'newsletter') NOT NULL,
+            widget_type VARCHAR(30) NOT NULL CHECK (widget_type IN ('recent_articles', 'popular_articles', 'categories', 'tags', 'custom_html', 'newsletter')),
             content TEXT,
-            position INT DEFAULT 0,
-            is_active TINYINT(1) DEFAULT 1,
+            position INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         
         // Site settings
         "CREATE TABLE IF NOT EXISTS site_settings (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             setting_key VARCHAR(100) UNIQUE NOT NULL,
-            setting_value LONGTEXT,
-            setting_type ENUM('text', 'textarea', 'boolean', 'json') DEFAULT 'text',
+            setting_value TEXT,
+            setting_type VARCHAR(20) DEFAULT 'text' CHECK (setting_type IN ('text', 'textarea', 'boolean', 'json')),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         
         // Media uploads
         "CREATE TABLE IF NOT EXISTS media (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             filename VARCHAR(255) NOT NULL,
             original_name VARCHAR(255) NOT NULL,
             file_path VARCHAR(500) NOT NULL,
             file_type VARCHAR(100),
-            file_size INT,
-            uploaded_by INT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+            file_size INTEGER,
+            uploaded_by INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )"
     ];
     
