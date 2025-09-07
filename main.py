@@ -109,6 +109,13 @@ def init_db():
                 parent_id INTEGER,
                 sort_order INTEGER DEFAULT 0,
                 is_active BOOLEAN DEFAULT TRUE,
+                layout_type VARCHAR(50) DEFAULT 'grid',
+                articles_count INTEGER DEFAULT 6,
+                show_images BOOLEAN DEFAULT TRUE,
+                show_excerpts BOOLEAN DEFAULT TRUE,
+                show_on_homepage BOOLEAN DEFAULT TRUE,
+                homepage_position INTEGER DEFAULT 0,
+                sidebar_position INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -170,21 +177,54 @@ def init_db():
                            VALUES (%s, %s, %s, %s, %s, %s)""",
                        ('admin', 'admin@echhapa.com', password_hash, 'admin', 'Admin', 'User'))
         
-        # Insert default categories
+        # Add sidebar layouts table
+        cur.execute("DROP TABLE IF EXISTS sidebar_layouts CASCADE")
+        cur.execute("""
+            CREATE TABLE sidebar_layouts (
+                id SERIAL PRIMARY KEY,
+                layout_name VARCHAR(100) NOT NULL,
+                layout_type VARCHAR(50) NOT NULL,
+                position INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                settings JSONB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Insert default categories with layout settings
         categories = [
-            ('World News', 'world-news', 'International news and global events'),
-            ('Technology', 'technology', 'Latest tech trends and innovations'),
-            ('Business', 'business', 'Business news and market updates'),
-            ('Sports', 'sports', 'Sports news and championships'),
-            ('Entertainment', 'entertainment', 'Entertainment and celebrity news'),
-            ('Politics', 'politics', 'Political news and analysis'),
-            ('Health', 'health', 'Health and medical news'),
-            ('Science', 'science', 'Scientific discoveries and research')
+            ('World News', 'world-news', 'International news and global events', 'featured-grid', 8, True, True, True, 1),
+            ('Technology', 'technology', 'Latest tech trends and innovations', 'grid', 6, True, True, True, 2),
+            ('Business', 'business', 'Business news and market updates', 'list', 5, True, True, True, 3),
+            ('Sports', 'sports', 'Sports news and championships', 'magazine', 6, True, True, True, 4),
+            ('Entertainment', 'entertainment', 'Entertainment and celebrity news', 'carousel', 4, True, True, True, 5),
+            ('Politics', 'politics', 'Political news and analysis', 'grid', 6, True, True, True, 6),
+            ('Health', 'health', 'Health and medical news', 'list', 4, True, True, False, 0),
+            ('Science', 'science', 'Scientific discoveries and research', 'grid', 5, True, True, False, 0)
         ]
         
-        for name, slug, desc in categories:
-            cur.execute("INSERT INTO categories (name, slug, description) VALUES (%s, %s, %s) ON CONFLICT (slug) DO NOTHING",
-                       (name, slug, desc))
+        for name, slug, desc, layout, count, show_img, show_exc, homepage, pos in categories:
+            cur.execute("""
+                INSERT INTO categories (name, slug, description, layout_type, articles_count, 
+                                      show_images, show_excerpts, show_on_homepage, homepage_position) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (slug) DO NOTHING
+            """, (name, slug, desc, layout, count, show_img, show_exc, homepage, pos))
+        
+        # Insert default sidebar layouts
+        sidebar_layouts = [
+            ('Trending Articles', 'trending', 1, True, '{"count": 5, "time_period": "week"}'),
+            ('Recent Posts', 'recent', 2, True, '{"count": 6, "exclude_featured": true}'),
+            ('Popular Categories', 'categories', 3, True, '{"style": "list", "show_count": true}'),
+            ('Newsletter Signup', 'newsletter', 4, True, '{"title": "Stay Updated", "placeholder": "Enter email"}'),
+            ('Social Media', 'social', 5, True, '{"platforms": ["facebook", "twitter", "instagram"]}'),
+            ('Advertisement', 'ad', 6, True, '{"position": "sidebar", "size": "300x250"}')
+        ]
+        
+        for name, layout_type, pos, active, settings in sidebar_layouts:
+            cur.execute("""
+                INSERT INTO sidebar_layouts (layout_name, layout_type, position, is_active, settings) 
+                VALUES (%s, %s, %s, %s, %s)
+            """, (name, layout_type, pos, active, settings))
         
         # Insert default layout settings
         default_layouts = [
@@ -3457,44 +3497,40 @@ def add_article():
 
 @app.route('/admin/layout')
 def layout_management():
-    """Category-Specific Layout Management System"""
+    """Comprehensive Layout Management System"""
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
     
-    # Get categories with their subcategories and current layout settings
     conn = get_db()
     categories = []
+    sidebar_layouts = []
     
     if conn:
         try:
             cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-            # Get main categories with their subcategories
+            
+            # Get all categories with their layout settings
             cur.execute("""
-                SELECT 
-                    c.id, c.name, c.slug, c.sort_order, c.is_active,
-                    c.layout_type,
-                    COALESCE(
-                        json_agg(
-                            json_build_object(
-                                'id', sc.id,
-                                'name', sc.name,
-                                'slug', sc.slug,
-                                'layout_type', sc.layout_type
-                            ) ORDER BY sc.sort_order
-                        ) FILTER (WHERE sc.id IS NOT NULL),
-                        '[]'::json
-                    ) as subcategories
-                FROM categories c
-                LEFT JOIN categories sc ON sc.parent_id = c.id AND sc.is_active = TRUE
-                WHERE c.parent_id IS NULL AND c.is_active = TRUE
-                GROUP BY c.id, c.name, c.slug, c.sort_order, c.is_active, c.layout_type
-                ORDER BY c.sort_order, c.name
+                SELECT id, name, slug, layout_type, articles_count, show_images, 
+                       show_excerpts, show_on_homepage, homepage_position, sidebar_position,
+                       is_active, created_at
+                FROM categories 
+                ORDER BY homepage_position, name
             """)
             categories = cur.fetchall()
+            
+            # Get sidebar layout settings
+            cur.execute("""
+                SELECT id, layout_name, layout_type, position, is_active, settings
+                FROM sidebar_layouts
+                ORDER BY position
+            """)
+            sidebar_layouts = cur.fetchall()
+            
             cur.close()
             conn.close()
         except Exception as e:
-            print(f"Error fetching categories: {e}")
+            print(f"Error fetching layout data: {e}")
     
     # Set default current layout
     current_layout = 'grid'
@@ -3508,7 +3544,7 @@ def layout_management():
     <title>Layout Management - Echhapa CMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js">
+    <link href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.css" rel="stylesheet">
     <style>
         :root {
             --sidebar-width: 280px;
@@ -3523,45 +3559,68 @@ def layout_management():
         .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
         .nav-link i { width: 20px; margin-right: 0.75rem; }
         
-        .layout-template {
+        .layout-preview {
             background: white;
+            border: 2px solid #ddd;
             border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
+            padding: 10px;
+            margin: 5px;
             cursor: pointer;
-            min-height: 120px;
-            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            height: 100px;
+            position: relative;
         }
-        .layout-template:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
-        .layout-template.selected { border-color: var(--accent-color); background: #f0f8ff; }
-        .layout-header { background: #333; color: white; padding: 0.5rem; font-size: 0.75rem; font-weight: 500; }
-        .layout-preview { padding: 0.75rem; }
-        .layout-item { margin-bottom: 0.25rem; height: 8px; border-radius: 2px; }
-        .main-item { background: #007bff; height: 20px; }
-        .list-item { background: #28a745; }
-        .card-item { background: #ffc107; height: 15px; }
-        .text-item { background: #6c757d; height: 6px; }
+        .layout-preview:hover { border-color: var(--accent-color); transform: scale(1.02); }
+        .layout-preview.selected { border-color: var(--accent-color); background: #e3f2fd; }
+        .layout-name { font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; text-align: center; }
+        .layout-visual { height: 60px; display: flex; flex-direction: column; gap: 2px; }
+        .layout-item { background: #ddd; border-radius: 2px; }
+        .featured-item { background: #2196f3; height: 30px; }
+        .grid-item { background: #4caf50; height: 12px; }
+        .list-item { background: #ff9800; height: 8px; }
+        .carousel-item { background: #9c27b0; height: 15px; }
+        .magazine-item { background: #f44336; height: 10px; }
         
-        .category-section {
+        .category-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 5px solid var(--accent-color);
+        }
+        
+        .homepage-controls {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .sidebar-widget {
             background: white;
             border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            border-left: 4px solid var(--accent-color);
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            cursor: move;
         }
         
-        .subcategory {
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 1rem;
-            margin: 0.5rem 0;
-            border-left: 3px solid #dee2e6;
-        }
+        .widget-active { border-color: #28a745; background: #f8fff9; }
+        .widget-inactive { opacity: 0.6; }
         
-        .layout-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-        .drag-handle { cursor: move; color: #6c757d; margin-right: 0.5rem; }
+        .position-badge {
+            background: var(--accent-color);
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -3586,46 +3645,434 @@ def layout_management():
     <div class="main-content">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h1><i class="fas fa-th-large me-3"></i>Category Layout Management</h1>
-                <p class="lead mb-0">Choose different layout styles for each category section</p>
+                <h1><i class="fas fa-th-large me-3"></i>Advanced Layout Management</h1>
+                <p class="lead mb-0">Control how categories appear on your homepage and sidebar</p>
             </div>
             <div class="btn-group">
-                <button class="btn btn-success" onclick="saveAllLayouts()"><i class="fas fa-save me-2"></i>Save All Layouts</button>
-                <a href="{{ url_for('categories_management') }}" class="btn btn-outline-primary"><i class="fas fa-folder me-2"></i>Manage Categories</a>
+                <button class="btn btn-success" onclick="saveAllLayouts()"><i class="fas fa-save me-2"></i>Save All Changes</button>
+                <button class="btn btn-info" onclick="previewLayout()"><i class="fas fa-eye me-2"></i>Live Preview</button>
             </div>
         </div>
         
-        <!-- Available Layout Templates -->
+        <!-- Layout Options -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-th me-2"></i>Available Layout Templates</h5>
-                        <small class="text-muted">Each category can have its own layout style</small>
+                        <h5 class="mb-0"><i class="fas fa-palette me-2"></i>Layout Style Options</h5>
+                        <small class="text-muted">Choose from different layout styles for each category</small>
                     </div>
                     <div class="card-body">
-                        <div class="layout-grid" id="layoutTemplates">
-                            <div class="layout-template" data-layout="featured-main-list">
-                                <div class="layout-header">Featured + List View</div>
-                                <div class="layout-preview">
-                                    <div class="main-item layout-item"></div>
-                                    <div class="list-item layout-item"></div>
-                                    <div class="list-item layout-item"></div>
-                                    <div class="list-item layout-item"></div>
-                                    <div class="list-item layout-item"></div>
+                        <div class="row">
+                            <div class="col-md-2">
+                                <div class="layout-preview" data-layout="featured-grid">
+                                    <div class="layout-name">Featured Grid</div>
+                                    <div class="layout-visual">
+                                        <div class="featured-item layout-item"></div>
+                                        <div class="d-flex gap-1">
+                                            <div class="grid-item layout-item flex-fill"></div>
+                                            <div class="grid-item layout-item flex-fill"></div>
+                                            <div class="grid-item layout-item flex-fill"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            
-                            <div class="layout-template" data-layout="three-cards">
-                                <div class="layout-header">Three Cards Row</div>
-                                <div class="layout-preview">
-                                    <div class="d-flex gap-1">
-                                        <div class="card-item layout-item flex-fill"></div>
-                                        <div class="card-item layout-item flex-fill"></div>
-                                        <div class="card-item layout-item flex-fill"></div>
+                            <div class="col-md-2">
+                                <div class="layout-preview" data-layout="grid">
+                                    <div class="layout-name">Grid Layout</div>
+                                    <div class="layout-visual">
+                                        <div class="d-flex gap-1 mb-1">
+                                            <div class="grid-item layout-item flex-fill"></div>
+                                            <div class="grid-item layout-item flex-fill"></div>
+                                            <div class="grid-item layout-item flex-fill"></div>
+                                        </div>
+                                        <div class="d-flex gap-1">
+                                            <div class="grid-item layout-item flex-fill"></div>
+                                            <div class="grid-item layout-item flex-fill"></div>
+                                            <div class="grid-item layout-item flex-fill"></div>
+                                        </div>
                                     </div>
-                                    <div class="text-item layout-item"></div>
-                                    <div class="text-item layout-item"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="layout-preview" data-layout="list">
+                                    <div class="layout-name">List View</div>
+                                    <div class="layout-visual">
+                                        <div class="list-item layout-item mb-1"></div>
+                                        <div class="list-item layout-item mb-1"></div>
+                                        <div class="list-item layout-item mb-1"></div>
+                                        <div class="list-item layout-item mb-1"></div>
+                                        <div class="list-item layout-item"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="layout-preview" data-layout="magazine">
+                                    <div class="layout-name">Magazine Style</div>
+                                    <div class="layout-visual">
+                                        <div class="d-flex gap-1 mb-1">
+                                            <div class="magazine-item layout-item flex-fill"></div>
+                                            <div class="magazine-item layout-item flex-fill"></div>
+                                        </div>
+                                        <div class="magazine-item layout-item mb-1"></div>
+                                        <div class="d-flex gap-1">
+                                            <div class="magazine-item layout-item flex-fill"></div>
+                                            <div class="magazine-item layout-item flex-fill"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="layout-preview" data-layout="carousel">
+                                    <div class="layout-name">Carousel Slider</div>
+                                    <div class="layout-visual">
+                                        <div class="carousel-item layout-item mb-2"></div>
+                                        <div class="d-flex gap-1 justify-content-center">
+                                            <div style="width: 8px; height: 8px; border-radius: 50%; background: #ddd;"></div>
+                                            <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-color);"></div>
+                                            <div style="width: 8px; height: 8px; border-radius: 50%; background: #ddd;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Category Layout Management -->
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-folder-open me-2"></i>Category Layout Settings</h5>
+                        <small class="text-muted">Configure layout for each category and homepage visibility</small>
+                    </div>
+                    <div class="card-body">
+                        {% for category in categories %}
+                        <div class="category-card" data-category-id="{{ category.id }}">
+                            <div class="row align-items-center">
+                                <div class="col-md-3">
+                                    <div class="d-flex align-items-center">
+                                        {% if category.show_on_homepage %}
+                                            <span class="position-badge me-2">{{ category.homepage_position or 0 }}</span>
+                                        {% endif %}
+                                        <div>
+                                            <h6 class="mb-1">{{ category.name }}</h6>
+                                            <small class="text-muted">{{ category.slug }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">Layout Style</label>
+                                    <select class="form-select form-select-sm layout-selector" data-category="{{ category.id }}">
+                                        <option value="featured-grid" {{ 'selected' if category.layout_type == 'featured-grid' else '' }}>Featured Grid</option>
+                                        <option value="grid" {{ 'selected' if category.layout_type == 'grid' else '' }}>Grid Layout</option>
+                                        <option value="list" {{ 'selected' if category.layout_type == 'list' else '' }}>List View</option>
+                                        <option value="magazine" {{ 'selected' if category.layout_type == 'magazine' else '' }}>Magazine Style</option>
+                                        <option value="carousel" {{ 'selected' if category.layout_type == 'carousel' else '' }}>Carousel Slider</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label fw-bold">Articles Count</label>
+                                    <input type="number" class="form-control form-control-sm articles-count" 
+                                           value="{{ category.articles_count or 6 }}" min="1" max="20" 
+                                           data-category="{{ category.id }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="homepage-controls">
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input homepage-toggle" type="checkbox" 
+                                                   id="homepage{{ category.id }}" data-category="{{ category.id }}"
+                                                   {{ 'checked' if category.show_on_homepage else '' }}>
+                                            <label class="form-check-label fw-bold" for="homepage{{ category.id }}">Show on Homepage</label>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <input type="number" class="form-control form-control-sm homepage-position" 
+                                                       placeholder="Position" value="{{ category.homepage_position or 0 }}" 
+                                                       min="0" max="20" data-category="{{ category.id }}" 
+                                                       {{ 'disabled' if not category.show_on_homepage else '' }}>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input show-images" type="checkbox" 
+                                                           data-category="{{ category.id }}" 
+                                                           {{ 'checked' if category.show_images else '' }}>
+                                                    <label class="form-check-label">Images</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar Layout Management -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-columns me-2"></i>Sidebar Layout</h5>
+                        <small class="text-muted">Drag to reorder sidebar widgets</small>
+                    </div>
+                    <div class="card-body">
+                        <div id="sidebar-widgets">
+                            {% for widget in sidebar_layouts %}
+                            <div class="sidebar-widget {{ 'widget-active' if widget.is_active else 'widget-inactive' }}" 
+                                 data-widget-id="{{ widget.id }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-grip-vertical me-2 text-muted"></i>
+                                        <div>
+                                            <strong>{{ widget.layout_name }}</strong>
+                                            <br><small class="text-muted">{{ widget.layout_type }}</small>
+                                        </div>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input widget-toggle" type="checkbox" 
+                                               data-widget="{{ widget.id }}" 
+                                               {{ 'checked' if widget.is_active else '' }}>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <hr>
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="addCustomWidget()">
+                            <i class="fas fa-plus me-2"></i>Add Custom Widget
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Live Preview Panel -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-eye me-2"></i>Layout Preview</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="layout-preview-area" style="min-height: 200px; background: #f8f9fa; border-radius: 6px; padding: 10px;">
+                            <div class="text-center text-muted mt-5">
+                                <i class="fas fa-image fa-2x mb-2"></i>
+                                <p>Select a category to preview its layout</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>
+        // Initialize sortable for sidebar widgets
+        new Sortable(document.getElementById('sidebar-widgets'), {
+            animation: 150,
+            ghostClass: 'opacity-50',
+            onEnd: function (evt) {
+                updateWidgetPositions();
+            }
+        });
+        
+        // Layout style selection
+        document.querySelectorAll('.layout-preview').forEach(preview => {
+            preview.addEventListener('click', function() {
+                document.querySelectorAll('.layout-preview').forEach(p => p.classList.remove('selected'));
+                this.classList.add('selected');
+                
+                const layout = this.dataset.layout;
+                const activeCategory = document.querySelector('.category-card.selected');
+                if (activeCategory) {
+                    const categoryId = activeCategory.dataset.categoryId;
+                    const selector = activeCategory.querySelector('.layout-selector');
+                    selector.value = layout;
+                    updateLayoutPreview(categoryId, layout);
+                }
+            });
+        });
+        
+        // Category card selection
+        document.querySelectorAll('.category-card').forEach(card => {
+            card.addEventListener('click', function() {
+                document.querySelectorAll('.category-card').forEach(c => c.classList.remove('selected'));
+                this.classList.add('selected');
+                
+                const categoryId = this.dataset.categoryId;
+                const layout = this.querySelector('.layout-selector').value;
+                updateLayoutPreview(categoryId, layout);
+            });
+        });
+        
+        // Homepage toggle functionality
+        document.querySelectorAll('.homepage-toggle').forEach(toggle => {
+            toggle.addEventListener('change', function() {
+                const categoryId = this.dataset.category;
+                const positionInput = document.querySelector(`[data-category="${categoryId}"].homepage-position`);
+                positionInput.disabled = !this.checked;
+                
+                if (this.checked && !positionInput.value) {
+                    positionInput.value = getNextAvailablePosition();
+                }
+            });
+        });
+        
+        // Widget toggle functionality
+        document.querySelectorAll('.widget-toggle').forEach(toggle => {
+            toggle.addEventListener('change', function() {
+                const widget = this.closest('.sidebar-widget');
+                widget.classList.toggle('widget-active', this.checked);
+                widget.classList.toggle('widget-inactive', !this.checked);
+            });
+        });
+        
+        function updateLayoutPreview(categoryId, layout) {
+            const previewArea = document.getElementById('layout-preview-area');
+            const category = document.querySelector(`[data-category-id="${categoryId}"]`);
+            const categoryName = category.querySelector('h6').textContent;
+            
+            let previewContent = `
+                <div class="text-center mb-2">
+                    <strong>${categoryName}</strong> - ${layout.charAt(0).toUpperCase() + layout.slice(1)} Layout
+                </div>
+            `;
+            
+            switch(layout) {
+                case 'featured-grid':
+                    previewContent += `
+                        <div class="mb-2" style="height: 40px; background: #2196f3; border-radius: 4px;"></div>
+                        <div class="row">
+                            <div class="col-4 mb-1"><div style="height: 20px; background: #4caf50; border-radius: 2px;"></div></div>
+                            <div class="col-4 mb-1"><div style="height: 20px; background: #4caf50; border-radius: 2px;"></div></div>
+                            <div class="col-4 mb-1"><div style="height: 20px; background: #4caf50; border-radius: 2px;"></div></div>
+                        </div>
+                    `;
+                    break;
+                case 'grid':
+                    previewContent += `
+                        <div class="row">
+                            <div class="col-6 mb-1"><div style="height: 25px; background: #4caf50; border-radius: 2px;"></div></div>
+                            <div class="col-6 mb-1"><div style="height: 25px; background: #4caf50; border-radius: 2px;"></div></div>
+                            <div class="col-6 mb-1"><div style="height: 25px; background: #4caf50; border-radius: 2px;"></div></div>
+                            <div class="col-6 mb-1"><div style="height: 25px; background: #4caf50; border-radius: 2px;"></div></div>
+                        </div>
+                    `;
+                    break;
+                case 'list':
+                    previewContent += `
+                        <div style="height: 15px; background: #ff9800; border-radius: 2px; margin-bottom: 3px;"></div>
+                        <div style="height: 15px; background: #ff9800; border-radius: 2px; margin-bottom: 3px;"></div>
+                        <div style="height: 15px; background: #ff9800; border-radius: 2px; margin-bottom: 3px;"></div>
+                        <div style="height: 15px; background: #ff9800; border-radius: 2px; margin-bottom: 3px;"></div>
+                    `;
+                    break;
+                case 'magazine':
+                    previewContent += `
+                        <div class="row mb-2">
+                            <div class="col-8"><div style="height: 30px; background: #f44336; border-radius: 2px;"></div></div>
+                            <div class="col-4"><div style="height: 30px; background: #f44336; border-radius: 2px;"></div></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-4 mb-1"><div style="height: 20px; background: #f44336; border-radius: 2px;"></div></div>
+                            <div class="col-4 mb-1"><div style="height: 20px; background: #f44336; border-radius: 2px;"></div></div>
+                            <div class="col-4 mb-1"><div style="height: 20px; background: #f44336; border-radius: 2px;"></div></div>
+                        </div>
+                    `;
+                    break;
+                case 'carousel':
+                    previewContent += `
+                        <div style="height: 50px; background: #9c27b0; border-radius: 4px; margin-bottom: 10px;"></div>
+                        <div class="text-center">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ddd; display: inline-block; margin: 0 2px;"></span>
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #9c27b0; display: inline-block; margin: 0 2px;"></span>
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ddd; display: inline-block; margin: 0 2px;"></span>
+                        </div>
+                    `;
+                    break;
+            }
+            
+            previewArea.innerHTML = previewContent;
+        }
+        
+        function getNextAvailablePosition() {
+            const positions = Array.from(document.querySelectorAll('.homepage-position'))
+                                  .map(input => parseInt(input.value) || 0)
+                                  .filter(pos => pos > 0);
+            return Math.max(...positions, 0) + 1;
+        }
+        
+        function updateWidgetPositions() {
+            const widgets = document.querySelectorAll('.sidebar-widget');
+            widgets.forEach((widget, index) => {
+                widget.dataset.position = index + 1;
+            });
+        }
+        
+        function saveAllLayouts() {
+            const categories = [];
+            const widgets = [];
+            
+            // Collect category layout data
+            document.querySelectorAll('.category-card').forEach(card => {
+                const categoryId = card.dataset.categoryId;
+                categories.push({
+                    id: categoryId,
+                    layout_type: card.querySelector('.layout-selector').value,
+                    articles_count: card.querySelector('.articles-count').value,
+                    show_on_homepage: card.querySelector('.homepage-toggle').checked,
+                    homepage_position: card.querySelector('.homepage-position').value,
+                    show_images: card.querySelector('.show-images').checked
+                });
+            });
+            
+            // Collect sidebar widget data
+            document.querySelectorAll('.sidebar-widget').forEach((widget, index) => {
+                widgets.push({
+                    id: widget.dataset.widgetId,
+                    position: index + 1,
+                    is_active: widget.querySelector('.widget-toggle').checked
+                });
+            });
+            
+            // Send to backend
+            fetch('/admin/layout/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    categories: categories,
+                    widgets: widgets
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Layout settings saved successfully!');
+                } else {
+                    alert('Error saving layout settings: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Error saving layout settings: ' + error);
+            });
+        }
+        
+        function previewLayout() {
+            window.open('/', '_blank');
+        }
+        
+        function addCustomWidget() {
+            alert('Custom widget functionality will be implemented');
+        }
+    </script>
+</body>
+</html>
                                 </div>
                             </div>
                             
@@ -4067,7 +4514,58 @@ def layout_management():
     </script>
 </body>
 </html>
-    """, categories=categories, current_layout=current_layout)
+    """, categories=categories, sidebar_layouts=sidebar_layouts)
+
+@app.route('/admin/layout/save', methods=['POST'])
+def save_layout_settings():
+    """Save layout settings for categories and sidebar widgets"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'})
+    
+    try:
+        data = request.get_json()
+        categories = data.get('categories', [])
+        widgets = data.get('widgets', [])
+        
+        conn = get_db()
+        if conn:
+            cur = conn.cursor()
+            
+            # Update category layout settings
+            for category in categories:
+                cur.execute("""
+                    UPDATE categories 
+                    SET layout_type = %s, articles_count = %s, show_images = %s, 
+                        show_on_homepage = %s, homepage_position = %s
+                    WHERE id = %s
+                """, (
+                    category['layout_type'],
+                    int(category['articles_count']),
+                    category['show_images'],
+                    category['show_on_homepage'],
+                    int(category['homepage_position']) if category['homepage_position'] else 0,
+                    int(category['id'])
+                ))
+            
+            # Update sidebar widget settings
+            for widget in widgets:
+                cur.execute("""
+                    UPDATE sidebar_layouts 
+                    SET position = %s, is_active = %s
+                    WHERE id = %s
+                """, (
+                    int(widget['position']),
+                    widget['is_active'],
+                    int(widget['id'])
+                ))
+            
+            conn.commit()
+            cur.close()
+            conn.close()
+            
+        return jsonify({'success': True, 'message': 'Layout settings saved successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/admin/layout/save-all', methods=['POST'])
 def save_all_layouts():
