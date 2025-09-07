@@ -77,9 +77,8 @@ function setSetting($key, $value, $type = 'text') {
 function getArticles($limit = 10, $offset = 0, $status = 'published', $categoryId = null) {
     global $pdo;
     
-    $sql = "SELECT a.*, u.username as author_name, c.name as category_name 
+    $sql = "SELECT a.*, a.author as author_name, c.name as category_name 
             FROM articles a 
-            LEFT JOIN users u ON a.author_id = u.id 
             LEFT JOIN categories c ON a.category_id = c.id 
             WHERE a.status = ?";
     
@@ -90,7 +89,7 @@ function getArticles($limit = 10, $offset = 0, $status = 'published', $categoryI
         $params[] = $categoryId;
     }
     
-    $sql .= " ORDER BY a.published_at DESC, a.created_at DESC LIMIT " . intval($limit) . " OFFSET " . intval($offset);
+    $sql .= " ORDER BY a.created_at DESC LIMIT " . intval($limit) . " OFFSET " . intval($offset);
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -99,9 +98,8 @@ function getArticles($limit = 10, $offset = 0, $status = 'published', $categoryI
 
 function getArticleBySlug($slug) {
     global $pdo;
-    $stmt = $pdo->prepare("SELECT a.*, u.username as author_name, c.name as category_name 
+    $stmt = $pdo->prepare("SELECT a.*, a.author as author_name, c.name as category_name 
                           FROM articles a 
-                          LEFT JOIN users u ON a.author_id = u.id 
                           LEFT JOIN categories c ON a.category_id = c.id 
                           WHERE a.slug = ? AND a.status = 'published'");
     $stmt->execute([$slug]);
@@ -123,13 +121,12 @@ function getHomepageSections() {
 function getSectionArticles($sectionId, $limit = null) {
     global $pdo;
     
-    $sql = "SELECT a.*, u.username as author_name, c.name as category_name, sa.is_featured, sa.position
+    $sql = "SELECT a.*, a.author as author_name, c.name as category_name, sa.is_featured, sa.position
             FROM section_articles sa
             JOIN articles a ON sa.article_id = a.id
-            LEFT JOIN users u ON a.author_id = u.id
             LEFT JOIN categories c ON a.category_id = c.id
             WHERE sa.section_id = ? AND a.status = 'published'
-            ORDER BY sa.is_featured DESC, sa.position ASC, a.published_at DESC";
+            ORDER BY sa.is_featured DESC, sa.position ASC, a.created_at DESC";
     
     if ($limit) {
         $sql .= " LIMIT " . intval($limit);
