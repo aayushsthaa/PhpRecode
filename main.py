@@ -4154,6 +4154,21 @@ def users_management():
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
     
+    # Get all users from database
+    conn = get_db()
+    users = []
+    
+    if conn:
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cur.execute("""SELECT id, username, email, role, first_name, last_name, 
+                          created_at, last_login, is_active FROM users ORDER BY created_at DESC""")
+            users = cur.fetchall()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error fetching users: {e}")
+    
     return render_template_string("""
 <!DOCTYPE html>
 <html lang="en">
@@ -4198,18 +4213,86 @@ def users_management():
     </nav>
 
     <div class="main-content">
-        <h1><i class="fas fa-users me-3"></i>Users Management</h1>
-        <p class="lead">Manage website administrators and authors</p>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1><i class="fas fa-users me-3"></i>Users Management</h1>
+                <p class="lead">Manage website administrators and authors</p>
+            </div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                <i class="fas fa-plus me-2"></i>Add New User
+            </button>
+        </div>
         
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>User management system is under development. This will allow you to create and manage user accounts.
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td><strong>{{ user.username }}</strong></td>
+                                <td>{{ user.email or 'N/A' }}</td>
+                                <td>{{ (user.first_name + ' ' + user.last_name) if user.first_name else 'N/A' }}</td>
+                                <td><span class="badge bg-primary">{{ user.role.title() }}</span></td>
+                                <td>
+                                    {% if user.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</td>
+                                <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never' }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editUser({{ user.id }})">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    {% if user.id != session.get('user_id') %}
+                                    <button class="btn btn-sm btn-outline-danger" onclick="toggleUserStatus({{ user.id }}, {{ user.is_active|lower }})">
+                                        {% if user.is_active %}
+                                            <i class="fas fa-ban"></i>
+                                        {% else %}
+                                            <i class="fas fa-check"></i>
+                                        {% endif %}
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function editUser(userId) {
+            // TODO: Implement user editing
+            alert('User editing functionality will be implemented');
+        }
+        
+        function toggleUserStatus(userId, isActive) {
+            // TODO: Implement user status toggle
+            alert('User status toggle functionality will be implemented');
+        }
+    </script>
 </body>
 </html>
-    """)
+    """, users=users)
 
 @app.route('/admin/categories')
 def categories_management():
