@@ -2930,6 +2930,7 @@ def add_article():
     <title>Create New Article - Echhapa CMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="/css/custom-editor.css" rel="stylesheet">
     <style>
         :root {
             --sidebar-width: 280px;
@@ -3261,29 +3262,25 @@ def add_article():
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/custom-editor.js"></script>
     <script>
         let uploadedImages = [];
         let featuredImageFile = null;
+        let customEditor;
 
-        // Initialize TinyMCE Rich Text Editor
-        tinymce.init({
-            selector: '#articleContent',
-            height: 500,
-            plugins: [
-                'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                'insertdatetime', 'media', 'table', 'help', 'wordcount', 'emoticons'
-            ],
-            toolbar: 'undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | link image media table | emoticons charmap | preview code fullscreen',
-            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif; font-size: 16px; line-height: 1.6; }',
-            image_advtab: true,
-            paste_data_images: true,
-            automatic_uploads: true,
-            file_picker_types: 'image',
-            setup: function (editor) {
-                editor.on('keyup change', function () {
-                    updateStats();
+        // Initialize Custom Rich Text Editor
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof CustomEditor !== 'undefined') {
+                customEditor = new CustomEditor('#articleContent', {
+                    height: '500px'
                 });
+                
+                // Set up change listeners for stats update
+                const editorElement = document.querySelector('.custom-editor .editor-content');
+                if (editorElement) {
+                    editorElement.addEventListener('input', updateStats);
+                    editorElement.addEventListener('keyup', updateStats);
+                }
             }
         });
 
@@ -3371,8 +3368,15 @@ def add_article():
 
         // Update article stats
         function updateStats() {
-            // Get content from TinyMCE
-            const content = tinymce.get('articleContent')?.getContent({format: 'text'}) || '';
+            // Get content from Custom Editor
+            let content = '';
+            if (customEditor) {
+                const editorElement = document.querySelector('.custom-editor .editor-content');
+                content = editorElement ? editorElement.textContent || '' : '';
+            } else {
+                content = document.getElementById('articleContent').value || '';
+            }
+            
             const words = content.trim() ? content.trim().split(/\\s+/).length : 0;
             const readingTime = Math.ceil(words / 200); // Average reading speed
             const imageCount = (featuredImageFile ? 1 : 0) + uploadedImages.length;
@@ -3403,7 +3407,7 @@ def add_article():
         function collectFormData() {
             return {
                 title: document.getElementById('articleTitle').value,
-                content: tinymce.get('articleContent').getContent(),
+                content: customEditor ? customEditor.getContent() : document.getElementById('articleContent').value,
                 excerpt: document.getElementById('articleExcerpt').value,
                 category_id: document.getElementById('articleCategory').value,
                 author: document.getElementById('articleAuthor').value,

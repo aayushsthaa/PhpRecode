@@ -144,27 +144,19 @@ function initializeFileUpload() {
     });
 }
 
-// Initialize TinyMCE editor
+// Initialize Custom Rich Text Editor (replaced TinyMCE)
 function initializeTinyMCE() {
-    if (typeof tinymce !== 'undefined') {
-        tinymce.init({
-            selector: '.rich-editor',
-            height: 400,
-            menubar: false,
-            plugins: [
-                'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-                'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                'insertdatetime', 'media', 'table', 'help', 'wordcount'
-            ],
-            toolbar: 'undo redo | blocks | ' +
-                'bold italic backcolor | alignleft aligncenter ' +
-                'alignright alignjustify | bullist numlist outdent indent | ' +
-                'removeformat | help',
-            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif; font-size: 14px; }',
-            setup: function(editor) {
-                editor.on('change', function() {
-                    editor.save();
+    // Load custom editor if not already loaded
+    if (typeof initializeCustomEditors === 'function') {
+        initializeCustomEditors();
+    } else {
+        // Fallback: simple initialization
+        document.querySelectorAll('.rich-editor, #articleContent').forEach(element => {
+            if (!element.dataset.editorInitialized && typeof CustomEditor !== 'undefined') {
+                new CustomEditor(`#${element.id}`, {
+                    height: '400px'
                 });
+                element.dataset.editorInitialized = 'true';
             }
         });
     }
