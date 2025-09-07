@@ -1,8 +1,8 @@
-modules = ["python-3.11", "php-8.2", "nodejs-20", "web"]
+modules = ["python-3.11", "php-8.2", "nodejs-20", "web", "php-8.3"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["cargo", "freetype", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "mysql80", "openjpeg", "openssl", "php", "php82Extensions.gd", "php82Extensions.mbstring", "php82Extensions.pdo", "php82Extensions.pdo_mysql", "php82Extensions.pdo_pgsql", "php82Extensions.pgsql", "pkg-config", "postgresql", "rustc", "tcl", "tk", "zlib"]
+packages = ["cargo", "freetype", "lcms2", "libiconv", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "mysql80", "openjpeg", "openssl", "php", "php82Extensions.gd", "php82Extensions.mbstring", "php82Extensions.pdo", "php82Extensions.pdo_mysql", "php82Extensions.pdo_pgsql", "php82Extensions.pgsql", "pkg-config", "postgresql", "rustc", "tcl", "tk", "zlib", "php83Extensions.pdo_pgsql", "php83Extensions.pgsql"]
 
 [deployment]
 deploymentTarget = "autoscale"
