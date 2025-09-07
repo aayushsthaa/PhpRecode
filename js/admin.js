@@ -406,3 +406,59 @@ function initializeAdvancedComponents() {
     // Initialize any advanced components
     console.log('Advanced admin components initialized');
 }
+
+// Missing JavaScript functions for custom editor toolbar
+function formatText(format) {
+    if (typeof tinymce !== 'undefined') {
+        const activeEditor = tinymce.activeEditor;
+        if (activeEditor) {
+            switch(format) {
+                case 'bold':
+                    activeEditor.execCommand('Bold');
+                    break;
+                case 'italic':
+                    activeEditor.execCommand('Italic');
+                    break;
+                case 'underline':
+                    activeEditor.execCommand('Underline');
+                    break;
+                case 'strikethrough':
+                    activeEditor.execCommand('Strikethrough');
+                    break;
+            }
+        }
+    }
+}
+
+function insertHeading(level) {
+    if (typeof tinymce !== 'undefined') {
+        const activeEditor = tinymce.activeEditor;
+        if (activeEditor) {
+            activeEditor.execCommand('FormatBlock', false, `h${level}`);
+        }
+    }
+}
+
+function insertLink() {
+    if (typeof tinymce !== 'undefined') {
+        const activeEditor = tinymce.activeEditor;
+        if (activeEditor) {
+            const url = prompt('Enter URL:');
+            if (url) {
+                activeEditor.execCommand('CreateLink', false, url);
+            }
+        }
+    }
+}
+
+function addImageBlock() {
+    if (typeof tinymce !== 'undefined') {
+        const activeEditor = tinymce.activeEditor;
+        if (activeEditor) {
+            const url = prompt('Enter Image URL:');
+            if (url) {
+                activeEditor.execCommand('InsertImage', false, url);
+            }
+        }
+    }
+}
