@@ -3492,6 +3492,9 @@ def layout_management():
         except Exception as e:
             print(f"Error fetching categories: {e}")
     
+    # Set default current layout
+    current_layout = 'grid'
+    
     return render_template_string("""
 <!DOCTYPE html>
 <html lang="en">
