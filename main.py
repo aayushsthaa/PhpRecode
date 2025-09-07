@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Echhapa News Portal - Professional CMS with MySQL
+Echhapa News Portal - Professional CMS with PostgreSQL
 Advanced features: Ad Management, Rich Text Editor, Layout Management
 """
 
 from flask import Flask, render_template_string, request, redirect, url_for, flash, session, jsonify
 import os
-import pymysql
-import pymysql.cursors
+import psycopg2
+import psycopg2.extras
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
@@ -35,15 +35,14 @@ def allowed_file(filename):
 def get_db():
     """Get database connection"""
     try:
-        conn = pymysql.connect(
-            host=os.environ.get('MYSQL_HOST', 'localhost'),
-            port=int(os.environ.get('MYSQL_PORT', '3306')),
-            database=os.environ.get('MYSQL_DATABASE', 'echhapa_news'),
-            user=os.environ.get('MYSQL_USER', 'root'),
-            password=os.environ.get('MYSQL_PASSWORD', ''),
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor
+        conn = psycopg2.connect(
+            host=os.environ.get('PGHOST', 'localhost'),
+            port=int(os.environ.get('PGPORT', '5432')),
+            database=os.environ.get('PGDATABASE', 'echhapa_news'),
+            user=os.environ.get('PGUSER', 'postgres'),
+            password=os.environ.get('PGPASSWORD', '')
         )
+        conn.autocommit = True
         return conn
     except Exception as e:
         print(f"Database connection error: {e}")
@@ -58,38 +57,34 @@ def init_db():
         return False
     
     try:
-        cur = conn.cursor()
-        
-        # Create database if it doesn't exist
-        cur.execute("CREATE DATABASE IF NOT EXISTS echhapa_news")
-        cur.execute("USE echhapa_news")
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
         # Articles table with rich content support
-        cur.execute("DROP TABLE IF EXISTS articles")
+        cur.execute("DROP TABLE IF EXISTS articles CASCADE")
         cur.execute("""
             CREATE TABLE articles (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
-                content LONGTEXT NOT NULL,
+                content TEXT NOT NULL,
                 excerpt TEXT,
                 featured_image VARCHAR(255),
                 author VARCHAR(100) DEFAULT 'Admin',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 status VARCHAR(20) DEFAULT 'published',
                 slug VARCHAR(255) UNIQUE,
-                category_id INT,
-                views INT DEFAULT 0,
+                category_id INTEGER,
+                views INTEGER DEFAULT 0,
                 meta_description TEXT,
                 meta_keywords TEXT
             )
         """)
         
         # Users table
-        cur.execute("DROP TABLE IF EXISTS users")
+        cur.execute("DROP TABLE IF EXISTS users CASCADE")
         cur.execute("""
             CREATE TABLE users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
                 email VARCHAR(100) UNIQUE,
                 password_hash VARCHAR(255) NOT NULL,
@@ -104,25 +99,25 @@ def init_db():
         """)
         
         # Categories table
-        cur.execute("DROP TABLE IF EXISTS categories")
+        cur.execute("DROP TABLE IF EXISTS categories CASCADE")
         cur.execute("""
             CREATE TABLE categories (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 slug VARCHAR(100) UNIQUE NOT NULL,
                 description TEXT,
-                parent_id INT,
-                sort_order INT DEFAULT 0,
+                parent_id INTEGER,
+                sort_order INTEGER DEFAULT 0,
                 is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
         # Ads table - comprehensive ad management
-        cur.execute("DROP TABLE IF EXISTS ads")
+        cur.execute("DROP TABLE IF EXISTS ads CASCADE")
         cur.execute("""
             CREATE TABLE ads (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
                 description TEXT,
                 image_url VARCHAR(255),
@@ -132,37 +127,37 @@ def init_db():
                 start_date DATE,
                 end_date DATE,
                 is_active BOOLEAN DEFAULT TRUE,
-                priority INT DEFAULT 1,
-                clicks INT DEFAULT 0,
-                impressions INT DEFAULT 0,
+                priority INTEGER DEFAULT 1,
+                clicks INTEGER DEFAULT 0,
+                impressions INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
         # Layout settings table
-        cur.execute("DROP TABLE IF EXISTS layout_settings")
+        cur.execute("DROP TABLE IF EXISTS layout_settings CASCADE")
         cur.execute("""
             CREATE TABLE layout_settings (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
                 layout_name VARCHAR(100) NOT NULL,
                 layout_type VARCHAR(50) NOT NULL,
-                settings JSON,
+                settings JSONB,
                 is_active BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
         # Site settings table
-        cur.execute("DROP TABLE IF EXISTS site_settings")
+        cur.execute("DROP TABLE IF EXISTS site_settings CASCADE")
         cur.execute("""
             CREATE TABLE site_settings (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id SERIAL PRIMARY KEY,
                 setting_key VARCHAR(100) UNIQUE NOT NULL,
                 setting_value TEXT,
                 setting_type VARCHAR(50) DEFAULT 'text',
                 description TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
@@ -188,7 +183,7 @@ def init_db():
         ]
         
         for name, slug, desc in categories:
-            cur.execute("INSERT IGNORE INTO categories (name, slug, description) VALUES (%s, %s, %s)",
+            cur.execute("INSERT INTO categories (name, slug, description) VALUES (%s, %s, %s) ON CONFLICT (slug) DO NOTHING",
                        (name, slug, desc))
         
         # Insert default layout settings
@@ -199,7 +194,7 @@ def init_db():
         ]
         
         for name, type_val, settings, active in default_layouts:
-            cur.execute("INSERT IGNORE INTO layout_settings (layout_name, layout_type, settings, is_active) VALUES (%s, %s, %s, %s)",
+            cur.execute("INSERT INTO layout_settings (layout_name, layout_type, settings, is_active) VALUES (%s, %s, %s, %s)",
                        (name, type_val, settings, active))
         
         # Insert default site settings
@@ -216,7 +211,7 @@ def init_db():
         ]
         
         for key, value, type_val, desc in default_settings:
-            cur.execute("INSERT IGNORE INTO site_settings (setting_key, setting_value, setting_type, description) VALUES (%s, %s, %s, %s)",
+            cur.execute("INSERT INTO site_settings (setting_key, setting_value, setting_type, description) VALUES (%s, %s, %s, %s) ON CONFLICT (setting_key) DO NOTHING",
                        (key, value, type_val, desc))
         
         # Insert sample articles if none exist
@@ -338,7 +333,7 @@ def get_articles(limit=10):
         return fallback_articles[:limit]
     
     try:
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cur.execute("""SELECT a.*, c.name as category_name 
                       FROM articles a 
                       LEFT JOIN categories c ON a.category_id = c.id 
@@ -362,7 +357,7 @@ def get_article_by_slug(slug):
         return None
     
     try:
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cur.execute("""SELECT a.*, c.name as category_name 
                       FROM articles a 
                       LEFT JOIN categories c ON a.category_id = c.id 
@@ -1615,7 +1610,7 @@ def admin():
     
     if conn:
         try:
-            cur = conn.cursor()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             
             # Get article count
             cur.execute("SELECT COUNT(*) as count FROM articles")
@@ -2177,7 +2172,7 @@ def admin_login():
         conn = get_db()
         if conn:
             try:
-                cur = conn.cursor()
+                cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
                 cur.execute("SELECT * FROM users WHERE username = %s AND is_active = TRUE", (username,))
                 user = cur.fetchone()
                 cur.close()
@@ -2191,7 +2186,7 @@ def admin_login():
                     # Update last login
                     conn = get_db()
                     if conn:
-                        cur = conn.cursor()
+                        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
                         cur.execute("UPDATE users SET last_login = NOW() WHERE id = %s", (user['id'],))
                         conn.commit()
                         cur.close()
@@ -2423,7 +2418,7 @@ def ad_management():
     
     if conn:
         try:
-            cur = conn.cursor()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             cur.execute("SELECT * FROM ads ORDER BY created_at DESC")
             ads = cur.fetchall()
             cur.close()
@@ -2784,7 +2779,7 @@ def add_ad():
     conn = get_db()
     if conn:
         try:
-            cur = conn.cursor()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             cur.execute("""INSERT INTO ads (title, description, image_url, click_url, placement, ad_type, 
                           start_date, end_date, is_active, priority) 
                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
