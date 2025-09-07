@@ -84,7 +84,7 @@ function createTables($pdo) {
             layout_type ENUM('featured', 'grid', 'list', 'carousel') DEFAULT 'grid',
             max_articles INT DEFAULT 6,
             sort_order INT DEFAULT 0,
-            is_active BOOLEAN DEFAULT TRUE,
+            is_active TINYINT(1) DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         
@@ -94,7 +94,7 @@ function createTables($pdo) {
             section_id INT NOT NULL,
             article_id INT NOT NULL,
             position INT DEFAULT 0,
-            is_featured BOOLEAN DEFAULT FALSE,
+            is_featured TINYINT(1) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (section_id) REFERENCES homepage_sections(id) ON DELETE CASCADE,
             FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
@@ -107,7 +107,7 @@ function createTables($pdo) {
             widget_type ENUM('recent_articles', 'popular_articles', 'categories', 'tags', 'custom_html', 'newsletter') NOT NULL,
             content TEXT,
             position INT DEFAULT 0,
-            is_active BOOLEAN DEFAULT TRUE,
+            is_active TINYINT(1) DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
         

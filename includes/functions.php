@@ -90,9 +90,7 @@ function getArticles($limit = 10, $offset = 0, $status = 'published', $categoryI
         $params[] = $categoryId;
     }
     
-    $sql .= " ORDER BY a.published_at DESC, a.created_at DESC LIMIT ? OFFSET ?";
-    $params[] = $limit;
-    $params[] = $offset;
+    $sql .= " ORDER BY a.published_at DESC, a.created_at DESC LIMIT " . intval($limit) . " OFFSET " . intval($offset);
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -134,16 +132,11 @@ function getSectionArticles($sectionId, $limit = null) {
             ORDER BY sa.is_featured DESC, sa.position ASC, a.published_at DESC";
     
     if ($limit) {
-        $sql .= " LIMIT ?";
+        $sql .= " LIMIT " . intval($limit);
     }
     
     $stmt = $pdo->prepare($sql);
-    $params = [$sectionId];
-    if ($limit) {
-        $params[] = $limit;
-    }
-    
-    $stmt->execute($params);
+    $stmt->execute([$sectionId]);
     return $stmt->fetchAll();
 }
 
