@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Echhapa News Portal - Flask Version with MySQL
-Professional CMS with full functionality
+Echhapa News Portal - Professional CMS with MySQL
+Advanced features: Ad Management, Rich Text Editor, Layout Management
 """
 
 from flask import Flask, render_template_string, request, redirect, url_for, flash, session, jsonify
@@ -9,11 +9,27 @@ import os
 import pymysql
 import pymysql.cursors
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from werkzeug.utils import secure_filename
+from datetime import datetime, timedelta
 import json
+import uuid
+from PIL import Image
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-change-in-production")
+
+# Configuration
+UPLOAD_FOLDER = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+
+# Ensure upload directories exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs('static/uploads/articles', exist_ok=True)
+os.makedirs('static/uploads/ads', exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Database connection
 def get_db():
@@ -31,12 +47,11 @@ def get_db():
         return conn
     except Exception as e:
         print(f"Database connection error: {e}")
-        # For local development, create a simple in-memory fallback
         return None
 
 # Initialize database
 def init_db():
-    """Initialize database with basic structure"""
+    """Initialize database with comprehensive structure"""
     conn = get_db()
     if not conn:
         print("Database not available - using fallback mode")
@@ -49,50 +64,116 @@ def init_db():
         cur.execute("CREATE DATABASE IF NOT EXISTS echhapa_news")
         cur.execute("USE echhapa_news")
         
-        # Drop and recreate articles table
+        # Articles table with rich content support
         cur.execute("DROP TABLE IF EXISTS articles")
         cur.execute("""
             CREATE TABLE articles (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
-                content TEXT NOT NULL,
+                content LONGTEXT NOT NULL,
+                excerpt TEXT,
+                featured_image VARCHAR(255),
                 author VARCHAR(100) DEFAULT 'Admin',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 status VARCHAR(20) DEFAULT 'published',
-                slug VARCHAR(255) UNIQUE
+                slug VARCHAR(255) UNIQUE,
+                category_id INT,
+                views INT DEFAULT 0,
+                meta_description TEXT,
+                meta_keywords TEXT
             )
         """)
         
-        # Drop and recreate users table
+        # Users table
         cur.execute("DROP TABLE IF EXISTS users")
         cur.execute("""
             CREATE TABLE users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
+                email VARCHAR(100) UNIQUE,
                 password_hash VARCHAR(255) NOT NULL,
                 role VARCHAR(20) DEFAULT 'admin',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                first_name VARCHAR(50),
+                last_name VARCHAR(50),
+                avatar VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP,
+                is_active BOOLEAN DEFAULT TRUE
             )
         """)
         
-        # Create categories table
+        # Categories table
         cur.execute("DROP TABLE IF EXISTS categories")
         cur.execute("""
             CREATE TABLE categories (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 slug VARCHAR(100) UNIQUE NOT NULL,
-                description TEXT
+                description TEXT,
+                parent_id INT,
+                sort_order INT DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Insert default admin user (admin/admin123)
+        # Ads table - comprehensive ad management
+        cur.execute("DROP TABLE IF EXISTS ads")
+        cur.execute("""
+            CREATE TABLE ads (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                image_url VARCHAR(255),
+                click_url VARCHAR(500),
+                placement VARCHAR(50) NOT NULL,
+                ad_type VARCHAR(50) DEFAULT 'banner',
+                start_date DATE,
+                end_date DATE,
+                is_active BOOLEAN DEFAULT TRUE,
+                priority INT DEFAULT 1,
+                clicks INT DEFAULT 0,
+                impressions INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Layout settings table
+        cur.execute("DROP TABLE IF EXISTS layout_settings")
+        cur.execute("""
+            CREATE TABLE layout_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                layout_name VARCHAR(100) NOT NULL,
+                layout_type VARCHAR(50) NOT NULL,
+                settings JSON,
+                is_active BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Site settings table
+        cur.execute("DROP TABLE IF EXISTS site_settings")
+        cur.execute("""
+            CREATE TABLE site_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                setting_key VARCHAR(100) UNIQUE NOT NULL,
+                setting_value TEXT,
+                setting_type VARCHAR(50) DEFAULT 'text',
+                description TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Insert default admin user
         cur.execute("SELECT COUNT(*) as count FROM users WHERE username = 'admin'")
         result = cur.fetchone()
         if result['count'] == 0:
             password_hash = generate_password_hash('admin123')
-            cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)",
-                       ('admin', password_hash, 'admin'))
+            cur.execute("""INSERT INTO users (username, email, password_hash, role, first_name, last_name) 
+                           VALUES (%s, %s, %s, %s, %s, %s)""",
+                       ('admin', 'admin@echhapa.com', password_hash, 'admin', 'Admin', 'User'))
         
         # Insert default categories
         categories = [
@@ -100,28 +181,122 @@ def init_db():
             ('Technology', 'technology', 'Latest tech trends and innovations'),
             ('Business', 'business', 'Business news and market updates'),
             ('Sports', 'sports', 'Sports news and championships'),
-            ('Entertainment', 'entertainment', 'Entertainment and celebrity news')
+            ('Entertainment', 'entertainment', 'Entertainment and celebrity news'),
+            ('Politics', 'politics', 'Political news and analysis'),
+            ('Health', 'health', 'Health and medical news'),
+            ('Science', 'science', 'Scientific discoveries and research')
         ]
         
         for name, slug, desc in categories:
             cur.execute("INSERT IGNORE INTO categories (name, slug, description) VALUES (%s, %s, %s)",
                        (name, slug, desc))
         
+        # Insert default layout settings
+        default_layouts = [
+            ('Classic Grid', 'homepage', '{"featured_articles": 4, "sidebar_widgets": ["categories", "newsletter"], "layout_style": "grid"}', True),
+            ('Magazine Style', 'homepage', '{"featured_articles": 6, "sidebar_widgets": ["trending", "categories"], "layout_style": "magazine"}', False),
+            ('Minimal Clean', 'homepage', '{"featured_articles": 3, "sidebar_widgets": ["newsletter"], "layout_style": "minimal"}', False)
+        ]
+        
+        for name, type_val, settings, active in default_layouts:
+            cur.execute("INSERT IGNORE INTO layout_settings (layout_name, layout_type, settings, is_active) VALUES (%s, %s, %s, %s)",
+                       (name, type_val, settings, active))
+        
+        # Insert default site settings
+        default_settings = [
+            ('site_title', 'Echhapa News', 'text', 'Main site title'),
+            ('site_description', 'Your trusted source for news and information', 'text', 'Site description'),
+            ('contact_email', 'contact@echhapa.com', 'email', 'Contact email address'),
+            ('posts_per_page', '10', 'number', 'Number of posts per page'),
+            ('enable_comments', 'true', 'boolean', 'Enable article comments'),
+            ('google_analytics', '', 'text', 'Google Analytics tracking ID'),
+            ('social_facebook', '', 'url', 'Facebook page URL'),
+            ('social_twitter', '', 'url', 'Twitter profile URL'),
+            ('social_instagram', '', 'url', 'Instagram profile URL')
+        ]
+        
+        for key, value, type_val, desc in default_settings:
+            cur.execute("INSERT IGNORE INTO site_settings (setting_key, setting_value, setting_type, description) VALUES (%s, %s, %s, %s)",
+                       (key, value, type_val, desc))
+        
         # Insert sample articles if none exist
         cur.execute("SELECT COUNT(*) as count FROM articles")
         result = cur.fetchone()
         if result['count'] == 0:
             sample_articles = [
-                ("Breaking: Major Economic Development Announced", "In a significant move that could reshape the global economy, world leaders announced a comprehensive economic development package today. This landmark agreement promises to boost international trade, create millions of jobs, and foster sustainable growth across multiple sectors. The initiative includes substantial investments in renewable energy, digital infrastructure, and education systems worldwide.", "breaking-economic-development"),
-                ("Technology Advances Revolutionize 2025", "The technology sector continues to evolve at an unprecedented pace in 2025. From artificial intelligence breakthroughs to quantum computing milestones, this year has marked several historic achievements. Major tech companies have unveiled revolutionary products that promise to transform how we work, communicate, and interact with the digital world.", "technology-advances-2025"),
-                ("Global Climate Summit Delivers Historic Results", "The latest Global Climate Summit concluded with groundbreaking agreements and commitments from over 150 nations. International cooperation on climate change has reached new heights, with countries pledging substantial resources towards renewable energy transition and carbon reduction initiatives. This summit marks a turning point in global environmental policy.", "global-climate-summit-results"),
-                ("Sports Championship Season Brings Excitement", "The current championship season has delivered some of the most thrilling moments in sports history. Athletes from around the world have showcased exceptional talent and determination, breaking records and inspiring millions of fans. From football to tennis, this season has been marked by unprecedented competition and sportsmanship.", "sports-championship-update"),
-                ("Cultural Festival Celebrates Global Diversity", "Communities worldwide are coming together to celebrate cultural diversity through vibrant festivals and events. These gatherings showcase the rich tapestry of global traditions, arts, and customs, promoting understanding and unity among different cultures. Local cultural events continue to strengthen community bonds and preserve heritage.", "cultural-festival-highlights")
+                ("Breaking: Global Economic Summit Reaches Historic Agreement", 
+                 """<p>In a landmark decision that could reshape the global economy, world leaders from over 50 nations have reached a comprehensive economic agreement at the Global Economic Summit held in Geneva.</p>
+                 
+                 <p>The agreement, dubbed the "Geneva Accords," includes provisions for:</p>
+                 <ul>
+                 <li>Reduced trade barriers between participating nations</li>
+                 <li>Standardized digital currency regulations</li>
+                 <li>Joint climate change initiatives with economic incentives</li>
+                 <li>Technology sharing programs for developing countries</li>
+                 </ul>
+                 
+                 <p>President of the European Commission stated, "This agreement represents the most significant step forward in international economic cooperation since the establishment of the World Trade Organization."</p>
+                 
+                 <p>The accords are expected to come into effect by Q2 2025, pending ratification by individual governments.</p>""",
+                 "Global leaders unite for unprecedented economic cooperation that promises to reshape international trade and development.",
+                 "global-economic-summit-agreement", 1),
+                
+                ("Tech Giants Unveil Revolutionary AI-Powered News Platform", 
+                 """<p>Major technology companies have collaborated to launch an innovative AI-powered news aggregation and verification platform that promises to combat misinformation while delivering personalized news experiences.</p>
+                 
+                 <p>The platform, called "TruthLens," uses advanced machine learning algorithms to:</p>
+                 <ul>
+                 <li>Verify news sources and fact-check articles in real-time</li>
+                 <li>Provide bias analysis for news content</li>
+                 <li>Offer multiple perspectives on breaking news stories</li>
+                 <li>Customize news feeds based on user interests and reliability preferences</li>
+                 </ul>
+                 
+                 <p>The CEO of the initiative explained, "Our goal is to restore trust in journalism by providing tools that help readers make informed decisions about the news they consume."</p>
+                 
+                 <p>The platform will be available as a web service and mobile application starting next month.</p>""",
+                 "Revolutionary AI platform promises to transform how we consume and verify news in the digital age.",
+                 "ai-powered-news-platform", 2),
+                
+                ("Championship Finals Set Record Viewership Numbers", 
+                 """<p>The highly anticipated championship finals drew a record-breaking global audience of over 2.3 billion viewers, making it the most-watched sporting event in history.</p>
+                 
+                 <p>The thrilling match featured unprecedented athletic performances and dramatic moments that kept viewers engaged throughout the entire event. Social media platforms reported peak activity during key moments of the competition.</p>
+                 
+                 <p>Key highlights included:</p>
+                 <ul>
+                 <li>Record-breaking individual performances by multiple athletes</li>
+                 <li>Innovative broadcasting technology providing 360-degree coverage</li>
+                 <li>Interactive features allowing real-time viewer participation</li>
+                 <li>Sustainable event management setting new environmental standards</li>
+                 </ul>
+                 
+                 <p>The event's success has prompted organizers to announce plans for expanded coverage and fan engagement features for future competitions.</p>""",
+                 "Historic championship finals captivate global audience with record-breaking viewership and unforgettable performances.",
+                 "championship-finals-record-viewership", 4),
+                
+                ("Scientific Breakthrough: New Renewable Energy Storage Solution", 
+                 """<p>Researchers at leading universities have developed a revolutionary energy storage technology that could solve one of renewable energy's biggest challenges: efficient long-term storage.</p>
+                 
+                 <p>The breakthrough involves a novel battery design using abundant materials that can store energy for months without significant loss. This development addresses the intermittent nature of solar and wind power generation.</p>
+                 
+                 <p>Key advantages of the new technology:</p>
+                 <ul>
+                 <li>95% efficiency retention over 6-month storage periods</li>
+                 <li>Utilizes common, environmentally-friendly materials</li>
+                 <li>Scalable from residential to grid-level applications</li>
+                 <li>Cost-competitive with traditional energy storage methods</li>
+                 </ul>
+                 
+                 <p>The research team expects commercial applications to be available within the next three years, pending regulatory approval and manufacturing partnerships.</p>""",
+                 "Groundbreaking energy storage technology promises to accelerate the global transition to renewable energy.",
+                 "renewable-energy-storage-breakthrough", 8)
             ]
             
-            for title, content, slug in sample_articles:
-                cur.execute("INSERT INTO articles (title, content, slug) VALUES (%s, %s, %s)", 
-                           (title, content, slug))
+            for title, content, excerpt, slug, cat_id in sample_articles:
+                cur.execute("""INSERT INTO articles (title, content, excerpt, slug, category_id) 
+                              VALUES (%s, %s, %s, %s, %s)""", 
+                           (title, content, excerpt, slug, cat_id))
         
         conn.commit()
         cur.close()
@@ -136,21 +311,23 @@ def init_db():
 fallback_articles = [
     {
         'id': 1,
-        'title': "Breaking: Major Economic Development Announced",
-        'content': "In a significant move that could reshape the global economy, world leaders announced a comprehensive economic development package today. This landmark agreement promises to boost international trade, create millions of jobs, and foster sustainable growth across multiple sectors.",
+        'title': "Breaking: Global Economic Summit Reaches Historic Agreement",
+        'content': "In a landmark decision that could reshape the global economy, world leaders from over 50 nations have reached a comprehensive economic agreement...",
+        'excerpt': "Global leaders unite for unprecedented economic cooperation that promises to reshape international trade and development.",
         'author': 'Admin',
         'created_at': datetime.now(),
         'status': 'published',
-        'slug': 'breaking-economic-development'
+        'slug': 'global-economic-summit-agreement'
     },
     {
         'id': 2,
-        'title': "Technology Advances Revolutionize 2025",
-        'content': "The technology sector continues to evolve at an unprecedented pace in 2025. From artificial intelligence breakthroughs to quantum computing milestones, this year has marked several historic achievements.",
+        'title': "Tech Giants Unveil Revolutionary AI-Powered News Platform",
+        'content': "Major technology companies have collaborated to launch an innovative AI-powered news aggregation and verification platform...",
+        'excerpt': "Revolutionary AI platform promises to transform how we consume and verify news in the digital age.",
         'author': 'Admin',
         'created_at': datetime.now(),
         'status': 'published',
-        'slug': 'technology-advances-2025'
+        'slug': 'ai-powered-news-platform'
     }
 ]
 
@@ -162,7 +339,11 @@ def get_articles(limit=10):
     
     try:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM articles WHERE status = 'published' ORDER BY created_at DESC LIMIT %s", (limit,))
+        cur.execute("""SELECT a.*, c.name as category_name 
+                      FROM articles a 
+                      LEFT JOIN categories c ON a.category_id = c.id 
+                      WHERE a.status = 'published' 
+                      ORDER BY a.created_at DESC LIMIT %s""", (limit,))
         articles = cur.fetchall()
         cur.close()
         conn.close()
@@ -182,8 +363,15 @@ def get_article_by_slug(slug):
     
     try:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM articles WHERE slug = %s AND status = 'published'", (slug,))
+        cur.execute("""SELECT a.*, c.name as category_name 
+                      FROM articles a 
+                      LEFT JOIN categories c ON a.category_id = c.id 
+                      WHERE a.slug = %s AND a.status = 'published'""", (slug,))
         article = cur.fetchone()
+        if article:
+            # Update view count
+            cur.execute("UPDATE articles SET views = views + 1 WHERE id = %s", (article['id'],))
+            conn.commit()
         cur.close()
         conn.close()
         return article
@@ -191,161 +379,463 @@ def get_article_by_slug(slug):
         print(f"Error fetching article: {e}")
         return None
 
+# File upload helper
+def handle_file_upload(file, upload_type='general'):
+    """Handle file upload with proper naming and storage"""
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+        
+        if upload_type == 'articles':
+            filepath = os.path.join('static/uploads/articles', unique_filename)
+        elif upload_type == 'ads':
+            filepath = os.path.join('static/uploads/ads', unique_filename)
+        else:
+            filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
+        
+        try:
+            file.save(filepath)
+            
+            # Optimize image if it's an image file
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                with Image.open(filepath) as img:
+                    # Resize if too large
+                    if img.width > 1920 or img.height > 1080:
+                        img.thumbnail((1920, 1080), Image.Resampling.LANCZOS)
+                        img.save(filepath, optimize=True, quality=85)
+            
+            return filepath.replace('static/', '')
+        except Exception as e:
+            print(f"Error uploading file: {e}")
+            return None
+    return None
+
 # Homepage
 @app.route('/')
 def index():
-    """Homepage with news articles"""
-    articles = get_articles(10)
+    """Homepage with modern design and layout"""
+    articles = get_articles(12)
     
     return render_template_string("""
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Echhapa News - Your Trusted Source</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
-        .navbar-brand { font-family: 'Times New Roman', serif; font-weight: 900; color: #d42828 !important; }
-        .breaking-news { background: linear-gradient(45deg, #dc3545, #e74c3c); }
-        .featured-article h3 { font-size: 2.2rem; font-weight: 800; }
-        .card { transition: transform 0.2s ease-in-out; }
-        .card:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); }
-        .border-left-primary { border-left: 4px solid #dc3545; }
-        .article-link { text-decoration: none; color: inherit; }
-        .article-link:hover { color: #dc3545; }
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #e74c3c;
+            --text-color: #2c3e50;
+            --bg-color: #f8f9fa;
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+        }
+        
+        .navbar-brand { 
+            font-family: 'Times New Roman', serif; 
+            font-weight: 900; 
+            color: var(--accent-color) !important; 
+            font-size: 2rem;
+        }
+        
+        .breaking-news { 
+            background: linear-gradient(45deg, var(--accent-color), #c0392b);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #34495e 100%);
+            color: white;
+            padding: 4rem 0;
+        }
+        
+        .featured-article {
+            position: relative;
+            overflow: hidden;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .featured-article:hover { 
+            transform: translateY(-5px); 
+        }
+        
+        .card { 
+            border: none;
+            border-radius: 15px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        
+        .card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+        }
+        
+        .article-link { 
+            text-decoration: none; 
+            color: inherit; 
+            transition: color 0.3s ease;
+        }
+        
+        .article-link:hover { 
+            color: var(--accent-color);
+        }
+        
+        .category-badge {
+            background: var(--accent-color);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .sidebar-widget {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        
+        .widget-title {
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+        
+        .widget-title::after {
+            content: '';
+            position: absolute;
+            bottom: -0.5rem;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: var(--accent-color);
+            border-radius: 2px;
+        }
+        
+        .trending-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #eee;
+            transition: background 0.3s ease;
+        }
+        
+        .trending-item:hover {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding-left: 0.5rem;
+        }
+        
+        .trending-number {
+            background: var(--accent-color);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+            font-weight: bold;
+            font-size: 0.875rem;
+        }
+        
+        .footer {
+            background: var(--primary-color);
+            color: white;
+            margin-top: 4rem;
+        }
+        
+        .social-links a {
+            color: white;
+            font-size: 1.25rem;
+            margin: 0 0.5rem;
+            transition: color 0.3s ease;
+        }
+        
+        .social-links a:hover {
+            color: var(--accent-color);
+        }
+        
+        .newsletter-form {
+            background: linear-gradient(135deg, var(--accent-color), #c0392b);
+            border-radius: 15px;
+            padding: 2rem;
+            color: white;
+        }
+        
+        .btn-outline-accent {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+        
+        .btn-outline-accent:hover {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: white;
+        }
     </style>
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
         <div class="container">
-            <a class="navbar-brand fw-bold fs-2" href="/">
+            <a class="navbar-brand" href="/">
                 <i class="fas fa-newspaper me-2"></i>Echhapa News
             </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link fw-semibold" href="/">Home</a>
-                <a class="nav-link fw-semibold" href="/admin">Admin</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link fw-semibold" href="/">Home</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle fw-semibold" href="#" role="button" data-bs-toggle="dropdown">
+                            Categories
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-globe me-2"></i>World News</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-laptop me-2"></i>Technology</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-chart-line me-2"></i>Business</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-futbol me-2"></i>Sports</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link fw-semibold" href="#">About</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link fw-semibold" href="#">Contact</a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <form class="d-flex me-3">
+                        <input class="form-control" type="search" placeholder="Search news...">
+                        <button class="btn btn-outline-accent" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </form>
+                    <a href="/admin" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-cog me-1"></i>Admin
+                    </a>
+                </div>
             </div>
         </div>
     </nav>
     
-    <!-- Breaking News -->
+    <!-- Breaking News Ticker -->
     <div class="breaking-news text-white py-2">
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-auto">
-                    <strong><i class="fas fa-bolt me-2"></i>BREAKING NEWS</strong>
+                    <strong><i class="fas fa-bolt me-2"></i>BREAKING</strong>
                 </div>
                 <div class="col">
-                    <marquee>Welcome to Echhapa News - Your comprehensive news portal with MySQL database!</marquee>
+                    <div class="d-flex">
+                        <marquee class="text-white">Global Economic Summit concludes with historic agreements • Tech innovation drives renewable energy breakthrough • Championship finals set new viewership records</marquee>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="container-fluid px-0 py-4">
-        <div class="row">
-            <!-- Main Content -->
-            <div class="col-lg-9">
-                <div class="container">
-                    <!-- Featured Article -->
-                    {% if articles %}
-                    <section class="py-4 border-bottom">
-                        <h2 class="section-title border-start border-danger border-4 ps-3 mb-4">Top Stories</h2>
-                        <div class="row">
-                            <div class="col-lg-8">
-                                <div class="featured-article">
-                                    <h3>
-                                        <a href="/article/{{ articles[0].slug or articles[0].id }}" class="article-link">
-                                            {{ articles[0].title }}
-                                        </a>
-                                    </h3>
-                                    <p class="text-muted mb-2">
-                                        <small>By {{ articles[0].author }} • {{ articles[0].created_at.strftime('%B %d, %Y') if articles[0].created_at.strftime else articles[0].created_at }}</small>
-                                    </p>
-                                    <p class="lead">{{ articles[0].content[:200] }}...</p>
-                                    <a href="/article/{{ articles[0].slug or articles[0].id }}" class="btn btn-outline-danger">Read More</a>
-                                </div>
-                            </div>
-                            <div class="col-lg-4">
-                                {% for article in articles[1:4] %}
-                                <div class="side-article mb-3 pb-3 border-bottom">
-                                    <h6>
-                                        <a href="/article/{{ article.slug or article.id }}" class="article-link">
-                                            {{ article.title }}
-                                        </a>
-                                    </h6>
-                                    <p class="text-muted mb-0">
-                                        <small>{{ article.created_at.strftime('%B %d, %Y') if article.created_at.strftime else article.created_at }}</small>
-                                    </p>
-                                </div>
-                                {% endfor %}
-                            </div>
+    <!-- Hero Section -->
+    {% if articles %}
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <div class="featured-article bg-white text-dark p-4">
+                        <div class="mb-2">
+                            <span class="category-badge">Featured</span>
                         </div>
-                    </section>
-                    {% endif %}
+                        <h1 class="display-5 fw-bold mb-3">
+                            <a href="/article/{{ articles[0].slug or articles[0].id }}" class="article-link">
+                                {{ articles[0].title }}
+                            </a>
+                        </h1>
+                        <p class="lead mb-3">{{ articles[0].excerpt or (articles[0].content[:200] + "...") }}</p>
+                        <div class="d-flex align-items-center text-muted mb-3">
+                            <i class="fas fa-user me-2"></i>
+                            <span class="me-3">{{ articles[0].author }}</span>
+                            <i class="fas fa-calendar me-2"></i>
+                            <span>{{ articles[0].created_at.strftime('%B %d, %Y') if articles[0].created_at.strftime else articles[0].created_at }}</span>
+                        </div>
+                        <a href="/article/{{ articles[0].slug or articles[0].id }}" class="btn btn-primary btn-lg">
+                            Read Full Story <i class="fas fa-arrow-right ms-2"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="text-center text-white">
+                        <h2 class="mb-3">Stay Informed</h2>
+                        <p class="lead">Get the latest news and insights from around the world</p>
+                        <div class="social-links mt-4">
+                            <a href="#"><i class="fab fa-facebook"></i></a>
+                            <a href="#"><i class="fab fa-twitter"></i></a>
+                            <a href="#"><i class="fab fa-instagram"></i></a>
+                            <a href="#"><i class="fab fa-linkedin"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
 
-                    <!-- More Articles -->
-                    <section class="py-4">
-                        <h2 class="section-title border-start border-danger border-4 ps-3 mb-4">Latest News</h2>
-                        <div class="row">
-                            {% for article in articles[4:] %}
-                            <div class="col-lg-4 col-md-6 mb-4">
-                                <div class="card h-100 border-0 shadow-sm">
-                                    <div class="card-body">
-                                        <h5 class="card-title">
-                                            <a href="/article/{{ article.slug or article.id }}" class="article-link">
-                                                {{ article.title }}
-                                            </a>
-                                        </h5>
-                                        <p class="card-text text-muted">{{ article.content[:100] }}...</p>
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <small class="text-muted">By {{ article.author }}</small>
-                                            <small class="text-muted">{{ article.created_at.strftime('%b %d') if article.created_at.strftime else article.created_at }}</small>
-                                        </div>
-                                        <div class="mt-2">
-                                            <a href="/article/{{ article.slug or article.id }}" class="btn btn-sm btn-outline-primary">Read More</a>
-                                        </div>
-                                    </div>
+    <!-- Main Content -->
+    <div class="container py-5">
+        <div class="row">
+            <!-- Article Grid -->
+            <div class="col-lg-8">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold">Latest Stories</h2>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-secondary active">Grid</button>
+                        <button type="button" class="btn btn-outline-secondary">List</button>
+                    </div>
+                </div>
+                
+                <div class="row" id="articles-grid">
+                    {% for article in articles[1:9] %}
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            {% if article.featured_image %}
+                            <img src="{{ article.featured_image }}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="{{ article.title }}">
+                            {% else %}
+                            <div class="card-img-top bg-gradient d-flex align-items-center justify-content-center" style="height: 200px; background: linear-gradient(45deg, #3498db, #2980b9);">
+                                <i class="fas fa-newspaper fa-3x text-white opacity-50"></i>
+                            </div>
+                            {% endif %}
+                            <div class="card-body">
+                                {% if article.category_name %}
+                                <span class="category-badge mb-2 d-inline-block">{{ article.category_name }}</span>
+                                {% endif %}
+                                <h5 class="card-title">
+                                    <a href="/article/{{ article.slug or article.id }}" class="article-link">
+                                        {{ article.title }}
+                                    </a>
+                                </h5>
+                                <p class="card-text text-muted">
+                                    {{ article.excerpt or (article.content[:120] + "...") }}
+                                </p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="fas fa-user me-1"></i>{{ article.author }}
+                                    </small>
+                                    <small class="text-muted">
+                                        {{ article.created_at.strftime('%b %d') if article.created_at.strftime else article.created_at }}
+                                    </small>
                                 </div>
                             </div>
-                            {% endfor %}
                         </div>
-                    </section>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Load More Button -->
+                <div class="text-center mt-4">
+                    <button class="btn btn-outline-primary btn-lg">
+                        <i class="fas fa-plus me-2"></i>Load More Articles
+                    </button>
                 </div>
             </div>
             
             <!-- Sidebar -->
-            <div class="col-lg-3">
-                <div class="sidebar p-4 bg-light border-left-primary">
-                    <div class="widget mb-4">
-                        <h5 class="widget-title border-bottom pb-2 mb-3">Quick Links</h5>
-                        <ul class="list-unstyled">
-                            <li class="mb-2"><a href="/" class="text-decoration-none"><i class="fas fa-home me-2"></i>Home</a></li>
-                            <li class="mb-2"><a href="/admin" class="text-decoration-none"><i class="fas fa-cog me-2"></i>Admin Dashboard</a></li>
-                            <li class="mb-2"><a href="#" class="text-decoration-none"><i class="fas fa-info me-2"></i>About Us</a></li>
-                            <li class="mb-2"><a href="#" class="text-decoration-none"><i class="fas fa-envelope me-2"></i>Contact</a></li>
-                        </ul>
+            <div class="col-lg-4">
+                <!-- Newsletter Widget -->
+                <div class="newsletter-form text-center">
+                    <h4 class="fw-bold mb-3">
+                        <i class="fas fa-envelope me-2"></i>Newsletter
+                    </h4>
+                    <p class="mb-3">Get the latest news delivered to your inbox</p>
+                    <form>
+                        <div class="input-group mb-3">
+                            <input type="email" class="form-control" placeholder="Your email address">
+                            <button class="btn btn-light" type="submit">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                        <small class="opacity-75">We respect your privacy. Unsubscribe anytime.</small>
+                    </form>
+                </div>
+                
+                <!-- Trending Articles -->
+                <div class="sidebar-widget">
+                    <h5 class="widget-title">
+                        <i class="fas fa-fire me-2 text-danger"></i>Trending Now
+                    </h5>
+                    {% for article in articles[1:6] %}
+                    <div class="trending-item">
+                        <div class="trending-number">{{ loop.index }}</div>
+                        <div>
+                            <a href="/article/{{ article.slug or article.id }}" class="article-link">
+                                <strong>{{ article.title[:50] }}{% if article.title|length > 50 %}...{% endif %}</strong>
+                            </a>
+                            <div class="text-muted small mt-1">
+                                <i class="fas fa-eye me-1"></i>{{ article.views or 0 }} views
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div class="widget mb-4">
-                        <h5 class="widget-title border-bottom pb-2 mb-3">Categories</h5>
-                        <ul class="list-unstyled">
-                            <li class="mb-2"><a href="#" class="text-decoration-none"><i class="fas fa-globe me-2"></i>World News</a></li>
-                            <li class="mb-2"><a href="#" class="text-decoration-none"><i class="fas fa-laptop me-2"></i>Technology</a></li>
-                            <li class="mb-2"><a href="#" class="text-decoration-none"><i class="fas fa-chart-line me-2"></i>Business</a></li>
-                            <li class="mb-2"><a href="#" class="text-decoration-none"><i class="fas fa-futbol me-2"></i>Sports</a></li>
-                        </ul>
+                    {% endfor %}
+                </div>
+                
+                <!-- Categories Widget -->
+                <div class="sidebar-widget">
+                    <h5 class="widget-title">
+                        <i class="fas fa-folder me-2"></i>Categories
+                    </h5>
+                    <div class="list-group list-group-flush">
+                        <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-globe me-2 text-primary"></i>World News</span>
+                            <span class="badge bg-primary rounded-pill">12</span>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-laptop me-2 text-info"></i>Technology</span>
+                            <span class="badge bg-info rounded-pill">8</span>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-chart-line me-2 text-success"></i>Business</span>
+                            <span class="badge bg-success rounded-pill">15</span>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-futbol me-2 text-warning"></i>Sports</span>
+                            <span class="badge bg-warning rounded-pill">6</span>
+                        </a>
                     </div>
-
-                    <div class="widget">
-                        <h5 class="widget-title border-bottom pb-2 mb-3">Newsletter</h5>
-                        <p>Subscribe to our newsletter for the latest updates.</p>
-                        <div class="input-group">
-                            <input type="email" class="form-control" placeholder="Your email">
-                            <button class="btn btn-danger" type="submit"><i class="fas fa-paper-plane"></i></button>
+                </div>
+                
+                <!-- Ad Space -->
+                <div class="sidebar-widget text-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <h6 class="fw-bold mb-3">Advertisement</h6>
+                    <div style="height: 200px;" class="d-flex align-items-center justify-content-center">
+                        <div>
+                            <i class="fas fa-ad fa-3x mb-3 opacity-50"></i>
+                            <p class="mb-0">Your Ad Here</p>
+                            <small class="opacity-75">Premium placement available</small>
                         </div>
                     </div>
                 </div>
@@ -354,52 +844,210 @@ def index():
     </div>
 
     <!-- Footer -->
-    <footer class="bg-dark text-light py-5 mt-5">
+    <footer class="footer py-5">
         <div class="container">
             <div class="row">
-                <div class="col-lg-6">
-                    <h5><i class="fas fa-newspaper me-2"></i>Echhapa News</h5>
-                    <p class="text-muted">Your trusted source for news and information. Built with Flask and MySQL for optimal performance.</p>
+                <div class="col-lg-4 mb-4">
+                    <h5 class="fw-bold mb-3">
+                        <i class="fas fa-newspaper me-2"></i>Echhapa News
+                    </h5>
+                    <p class="text-light opacity-75">Your trusted source for breaking news, in-depth analysis, and comprehensive coverage of global events.</p>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-facebook"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-linkedin"></i></a>
+                        <a href="#"><i class="fab fa-youtube"></i></a>
+                    </div>
                 </div>
-                <div class="col-lg-6 text-end">
-                    <p class="text-muted">&copy; 2025 Echhapa News. All rights reserved.</p>
-                    <p class="text-muted">Powered by Flask & MySQL</p>
+                <div class="col-lg-2 col-md-6 mb-4">
+                    <h6 class="fw-bold mb-3">Quick Links</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><a href="/" class="text-light opacity-75 text-decoration-none">Home</a></li>
+                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">About Us</a></li>
+                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Contact</a></li>
+                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Privacy Policy</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-2 col-md-6 mb-4">
+                    <h6 class="fw-bold mb-3">Categories</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">World News</a></li>
+                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Technology</a></li>
+                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Business</a></li>
+                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Sports</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-4 mb-4">
+                    <h6 class="fw-bold mb-3">Contact Info</h6>
+                    <div class="text-light opacity-75">
+                        <p class="mb-2"><i class="fas fa-envelope me-2"></i>contact@echhapa.com</p>
+                        <p class="mb-2"><i class="fas fa-phone me-2"></i>+1 (555) 123-4567</p>
+                        <p class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>123 News Street, Media City</p>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-4 opacity-25">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="text-light opacity-75 mb-0">&copy; 2025 Echhapa News. All rights reserved.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="text-light opacity-75 mb-0">
+                        Powered by Flask & MySQL | 
+                        <i class="fas fa-heart text-danger"></i> Made with passion
+                    </p>
                 </div>
             </div>
         </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Add smooth scrolling and interactive features
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animate cards on scroll
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+            
+            const observer = new IntersectionObserver(function(entries) {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                    }
+                });
+            }, observerOptions);
+            
+            // Observe all cards
+            document.querySelectorAll('.card').forEach(card => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                observer.observe(card);
+            });
+        });
+    </script>
 </body>
 </html>
     """, articles=articles)
 
-# Individual article page
+# Individual article page with enhanced design
 @app.route('/article/<slug>')
 def article_detail(slug):
-    """Display individual article"""
+    """Display individual article with modern design"""
     article = get_article_by_slug(slug)
     if not article:
         return "Article not found", 404
     
     return render_template_string("""
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ article.title }} - Echhapa News</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <meta name="description" content="{{ article.meta_description or article.excerpt or (article.content[:150] + '...') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
-        .navbar-brand { font-family: 'Times New Roman', serif; font-weight: 900; color: #d42828 !important; }
-        .article-content { font-size: 1.1rem; line-height: 1.8; }
-        .article-meta { border-bottom: 2px solid #dee2e6; }
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #e74c3c;
+        }
+        
+        .navbar-brand { 
+            font-family: 'Times New Roman', serif; 
+            font-weight: 900; 
+            color: var(--accent-color) !important; 
+        }
+        
+        .article-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #34495e 100%);
+            color: white;
+            padding: 3rem 0;
+        }
+        
+        .article-content {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: #444;
+        }
+        
+        .article-content h1, .article-content h2, .article-content h3 {
+            color: var(--primary-color);
+            margin: 2rem 0 1rem 0;
+        }
+        
+        .article-content p {
+            margin-bottom: 1.5rem;
+        }
+        
+        .article-content ul, .article-content ol {
+            margin-bottom: 1.5rem;
+            padding-left: 2rem;
+        }
+        
+        .article-content li {
+            margin-bottom: 0.5rem;
+        }
+        
+        .social-share {
+            position: sticky;
+            top: 100px;
+        }
+        
+        .share-button {
+            display: block;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .share-button:hover {
+            transform: scale(1.1);
+            color: white;
+        }
+        
+        .share-facebook { background: #3b5998; }
+        .share-twitter { background: #1da1f2; }
+        .share-linkedin { background: #0077b5; }
+        .share-whatsapp { background: #25d366; }
+        
+        .reading-progress {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 0%;
+            height: 4px;
+            background: var(--accent-color);
+            z-index: 9999;
+            transition: width 0.3s ease;
+        }
+        
+        .related-articles {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-top: 3rem;
+        }
     </style>
 </head>
 <body>
+    <!-- Reading Progress Bar -->
+    <div class="reading-progress" id="reading-progress"></div>
+    
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
         <div class="container">
             <a class="navbar-brand fw-bold fs-2" href="/">
                 <i class="fas fa-newspaper me-2"></i>Echhapa News
@@ -411,262 +1059,782 @@ def article_detail(slug):
         </div>
     </nav>
 
+    <!-- Article Header -->
+    <section class="article-header">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 mx-auto text-center">
+                    {% if article.category_name %}
+                    <span class="badge bg-light text-dark mb-3 px-3 py-2">{{ article.category_name }}</span>
+                    {% endif %}
+                    <h1 class="display-4 fw-bold mb-4">{{ article.title }}</h1>
+                    {% if article.excerpt %}
+                    <p class="lead mb-4">{{ article.excerpt }}</p>
+                    {% endif %}
+                    <div class="d-flex justify-content-center align-items-center text-light opacity-75">
+                        <div class="me-4">
+                            <i class="fas fa-user me-2"></i>{{ article.author }}
+                        </div>
+                        <div class="me-4">
+                            <i class="fas fa-calendar me-2"></i>{{ article.created_at.strftime('%B %d, %Y') if article.created_at.strftime else article.created_at }}
+                        </div>
+                        {% if article.views %}
+                        <div>
+                            <i class="fas fa-eye me-2"></i>{{ article.views }} views
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div class="container py-5">
         <div class="row">
-            <div class="col-lg-8 mx-auto">
-                <article>
-                    <header class="article-meta pb-4 mb-4">
-                        <h1 class="display-5 fw-bold">{{ article.title }}</h1>
-                        <div class="d-flex align-items-center text-muted mt-3">
-                            <i class="fas fa-user me-2"></i>
-                            <span class="me-3">By {{ article.author }}</span>
-                            <i class="fas fa-calendar me-2"></i>
-                            <span>{{ article.created_at.strftime('%B %d, %Y') if article.created_at.strftime else article.created_at }}</span>
-                        </div>
-                    </header>
+            <!-- Social Share Sidebar -->
+            <div class="col-lg-1 d-none d-lg-block">
+                <div class="social-share">
+                    <a href="#" class="share-button share-facebook" onclick="shareArticle('facebook')">
+                        <i class="fab fa-facebook-f"></i>
+                    </a>
+                    <a href="#" class="share-button share-twitter" onclick="shareArticle('twitter')">
+                        <i class="fab fa-twitter"></i>
+                    </a>
+                    <a href="#" class="share-button share-linkedin" onclick="shareArticle('linkedin')">
+                        <i class="fab fa-linkedin-in"></i>
+                    </a>
+                    <a href="#" class="share-button share-whatsapp" onclick="shareArticle('whatsapp')">
+                        <i class="fab fa-whatsapp"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Article Content -->
+            <div class="col-lg-8">
+                <article class="article-content">
+                    {% if article.featured_image %}
+                    <img src="{{ article.featured_image }}" class="img-fluid rounded mb-4 shadow" alt="{{ article.title }}">
+                    {% endif %}
                     
-                    <div class="article-content">
-                        {{ article.content | replace('\n', '<br>') | safe }}
+                    {{ article.content | safe }}
+                    
+                    <!-- Article Tags/Keywords -->
+                    {% if article.meta_keywords %}
+                    <div class="mt-4 pt-4 border-top">
+                        <h6 class="text-muted mb-3">Tags:</h6>
+                        {% for keyword in article.meta_keywords.split(',') %}
+                        <span class="badge bg-light text-dark me-2 mb-2">#{{ keyword.strip() }}</span>
+                        {% endfor %}
                     </div>
-                    
-                    <footer class="mt-5 pt-4 border-top">
-                        <div class="d-flex justify-content-between align-items-center">
+                    {% endif %}
+                </article>
+                
+                <!-- Article Footer -->
+                <footer class="mt-5 pt-4 border-top">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
                             <a href="/" class="btn btn-outline-primary">
                                 <i class="fas fa-arrow-left me-2"></i>Back to Home
                             </a>
-                            <div class="social-share">
-                                <span class="me-2">Share:</span>
-                                <a href="#" class="btn btn-sm btn-outline-primary me-1"><i class="fab fa-twitter"></i></a>
-                                <a href="#" class="btn btn-sm btn-outline-primary me-1"><i class="fab fa-facebook"></i></a>
-                                <a href="#" class="btn btn-sm btn-outline-primary"><i class="fab fa-linkedin"></i></a>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <div class="d-inline-block">
+                                <span class="me-3">Share this article:</span>
+                                <a href="#" class="btn btn-sm btn-outline-primary me-1" onclick="shareArticle('facebook')">
+                                    <i class="fab fa-facebook-f"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-info me-1" onclick="shareArticle('twitter')">
+                                    <i class="fab fa-twitter"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-primary" onclick="shareArticle('linkedin')">
+                                    <i class="fab fa-linkedin-in"></i>
+                                </a>
                             </div>
                         </div>
-                    </footer>
-                </article>
+                    </div>
+                </footer>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="col-lg-3">
+                <!-- Author Info -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body text-center">
+                        <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                            <i class="fas fa-user fa-lg"></i>
+                        </div>
+                        <h6 class="mt-3 mb-1">{{ article.author }}</h6>
+                        <small class="text-muted">Staff Writer</small>
+                    </div>
+                </div>
+                
+                <!-- Advertisement -->
+                <div class="card border-0 mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="card-body text-white text-center">
+                        <h6 class="fw-bold">Advertisement</h6>
+                        <div style="height: 200px;" class="d-flex align-items-center justify-content-center">
+                            <div>
+                                <i class="fas fa-ad fa-3x mb-3 opacity-50"></i>
+                                <p class="mb-0">Your Ad Here</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Related Articles -->
+        <div class="related-articles">
+            <h3 class="fw-bold mb-4">Related Articles</h3>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">Tech Innovation Drives Growth</h6>
+                            <p class="card-text text-muted small">Latest developments in technology sector...</p>
+                            <a href="#" class="text-decoration-none">Read more <i class="fas fa-arrow-right ms-1"></i></a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">Global Markets React</h6>
+                            <p class="card-text text-muted small">Financial markets show positive response...</p>
+                            <a href="#" class="text-decoration-none">Read more <i class="fas fa-arrow-right ms-1"></i></a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">Sports Championship Updates</h6>
+                            <p class="card-text text-muted small">Latest scores and championship news...</p>
+                            <a href="#" class="text-decoration-none">Read more <i class="fas fa-arrow-right ms-1"></i></a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Reading progress bar
+        window.addEventListener('scroll', function() {
+            const article = document.querySelector('.article-content');
+            const progress = document.getElementById('reading-progress');
+            
+            if (article) {
+                const scrollTop = window.scrollY;
+                const articleTop = article.offsetTop;
+                const articleHeight = article.offsetHeight;
+                const windowHeight = window.innerHeight;
+                
+                const scrolled = Math.max(0, scrollTop - articleTop);
+                const readable = articleHeight - windowHeight;
+                const percentage = Math.min(100, (scrolled / readable) * 100);
+                
+                progress.style.width = percentage + '%';
+            }
+        });
+        
+        // Social sharing functions
+        function shareArticle(platform) {
+            const url = encodeURIComponent(window.location.href);
+            const title = encodeURIComponent(document.title);
+            const text = encodeURIComponent('{{ article.excerpt or article.title }}');
+            
+            let shareUrl = '';
+            
+            switch(platform) {
+                case 'facebook':
+                    shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+                    break;
+                case 'twitter':
+                    shareUrl = `https://twitter.com/intent/tweet?url=${url}&text=${title}`;
+                    break;
+                case 'linkedin':
+                    shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${url}`;
+                    break;
+                case 'whatsapp':
+                    shareUrl = `https://wa.me/?text=${title}%20${url}`;
+                    break;
+            }
+            
+            if (shareUrl) {
+                window.open(shareUrl, '_blank', 'width=600,height=400');
+            }
+        }
+    </script>
 </body>
 </html>
     """, article=article)
 
-# Admin Dashboard
+# Professional Admin Dashboard with Left Sidebar
 @app.route('/admin')
 def admin():
-    """Professional Admin Dashboard"""
+    """Professional Admin Dashboard with Sidebar Navigation"""
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
     
-    # Get statistics
+    # Get dashboard statistics
     conn = get_db()
-    stats = {'articles': len(fallback_articles), 'users': 1, 'categories': 5}
+    stats = {
+        'articles': len(fallback_articles), 
+        'users': 1, 
+        'categories': 8,
+        'ads': 0,
+        'total_views': 0,
+        'recent_articles': []
+    }
     
     if conn:
         try:
             cur = conn.cursor()
+            
+            # Get article count
             cur.execute("SELECT COUNT(*) as count FROM articles")
             stats['articles'] = cur.fetchone()['count']
+            
+            # Get user count
             cur.execute("SELECT COUNT(*) as count FROM users")
             stats['users'] = cur.fetchone()['count']
+            
+            # Get category count
             cur.execute("SELECT COUNT(*) as count FROM categories")
             stats['categories'] = cur.fetchone()['count']
+            
+            # Get ad count
+            cur.execute("SELECT COUNT(*) as count FROM ads")
+            stats['ads'] = cur.fetchone()['count']
+            
+            # Get total views
+            cur.execute("SELECT SUM(views) as total FROM articles")
+            result = cur.fetchone()
+            stats['total_views'] = result['total'] or 0
+            
+            # Get recent articles
+            cur.execute("SELECT * FROM articles ORDER BY created_at DESC LIMIT 5")
+            stats['recent_articles'] = cur.fetchall()
+            
             cur.close()
             conn.close()
-        except:
-            pass
+        except Exception as e:
+            print(f"Error fetching stats: {e}")
     
     return render_template_string("""
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Echhapa News</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <title>Admin Dashboard - Echhapa CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%); }
-        .dashboard-card { 
-            background: rgba(255, 255, 255, 0.1); 
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        :root {
+            --sidebar-width: 280px;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --sidebar-bg: #34495e;
+            --sidebar-hover: #2c3e50;
+        }
+        
+        body {
+            background: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            color: white;
+            z-index: 1000;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar-header {
+            padding: 1.5rem;
+            background: var(--primary-color);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .sidebar-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .sidebar-nav {
+            padding: 1rem 0;
+        }
+        
+        .nav-item {
+            margin-bottom: 0.25rem;
+        }
+        
+        .nav-link {
+            color: rgba(255,255,255,0.8);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
             transition: all 0.3s ease;
+            border-left: 3px solid transparent;
         }
-        .dashboard-card:hover { 
-            transform: translateY(-5px); 
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        
+        .nav-link:hover, .nav-link.active {
+            color: white;
+            background: var(--sidebar-hover);
+            border-left-color: var(--accent-color);
         }
+        
+        .nav-link i {
+            width: 20px;
+            margin-right: 0.75rem;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+        }
+        
+        .topbar {
+            background: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .content-wrapper {
+            padding: 0 2rem 2rem 2rem;
+        }
+        
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 4px solid var(--accent-color);
+            transition: transform 0.3s ease;
         }
-        .navbar-brand { color: #fff !important; }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .stat-card.success { border-left-color: var(--success-color); }
+        .stat-card.warning { border-left-color: var(--warning-color); }
+        .stat-card.danger { border-left-color: var(--danger-color); }
+        
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 2rem;
+        }
+        
+        .recent-articles {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .article-item {
+            padding: 1rem 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+        }
+        
+        .article-item:last-child {
+            border-bottom: none;
+        }
+        
+        .article-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            margin-right: 1rem;
+        }
+        
+        .quick-actions {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .action-btn {
+            display: block;
+            width: 100%;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background: var(--accent-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+            text-align: center;
+        }
+        
+        .action-btn:hover {
+            background: #2980b9;
+            color: white;
+        }
+        
+        .action-btn.success { background: var(--success-color); }
+        .action-btn.success:hover { background: #229954; }
+        
+        .action-btn.warning { background: var(--warning-color); }
+        .action-btn.warning:hover { background: #d68910; }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Top Navigation -->
-    <nav class="navbar navbar-expand-lg glass-effect mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold fs-3" href="/admin">
-                <i class="fas fa-tachometer-alt me-2"></i>Echhapa CMS
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="/admin" class="sidebar-brand">
+                <i class="fas fa-newspaper me-2"></i>Echhapa CMS
             </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link text-white" href="/" target="_blank">
-                    <i class="fas fa-external-link-alt me-1"></i>View Site
+        </div>
+        
+        <div class="sidebar-nav">
+            <div class="nav-item">
+                <a href="/admin" class="nav-link active">
+                    <i class="fas fa-tachometer-alt"></i>Dashboard
                 </a>
-                <a class="nav-link text-white" href="{{ url_for('admin_logout') }}">
-                    <i class="fas fa-sign-out-alt me-1"></i>Logout
+            </div>
+            
+            <div class="nav-item">
+                <a href="{{ url_for('articles_management') }}" class="nav-link">
+                    <i class="fas fa-newspaper"></i>Articles
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="{{ url_for('add_article') }}" class="nav-link">
+                    <i class="fas fa-plus"></i>New Article
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="{{ url_for('ad_management') }}" class="nav-link">
+                    <i class="fas fa-ad"></i>Advertisements
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="{{ url_for('layout_management') }}" class="nav-link">
+                    <i class="fas fa-th-large"></i>Layout
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="{{ url_for('users_management') }}" class="nav-link">
+                    <i class="fas fa-users"></i>Users
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="{{ url_for('categories_management') }}" class="nav-link">
+                    <i class="fas fa-folder"></i>Categories
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="{{ url_for('site_settings') }}" class="nav-link">
+                    <i class="fas fa-cog"></i>Settings
+                </a>
+            </div>
+            
+            <hr class="my-3" style="border-color: rgba(255,255,255,0.2);">
+            
+            <div class="nav-item">
+                <a href="/" class="nav-link" target="_blank">
+                    <i class="fas fa-external-link-alt"></i>View Website
+                </a>
+            </div>
+            
+            <div class="nav-item">
+                <a href="{{ url_for('admin_logout') }}" class="nav-link">
+                    <i class="fas fa-sign-out-alt"></i>Logout
                 </a>
             </div>
         </div>
     </nav>
-
-    <div class="container">
-        <!-- Welcome Section -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="glass-effect rounded p-4">
-                    <h1 class="text-white mb-2">
-                        <i class="fas fa-crown text-warning me-2"></i>
-                        Welcome to Echhapa CMS Dashboard
-                    </h1>
-                    <p class="text-light opacity-75 mb-0">Manage your news portal with professional tools and analytics</p>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <div class="topbar">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-link d-md-none" onclick="toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h4 class="mb-0 fw-bold">Dashboard Overview</h4>
                 </div>
-            </div>
-        </div>
-
-        <!-- Statistics Cards -->
-        <div class="row mb-5">
-            <div class="col-lg-4 col-md-6 mb-3">
-                <div class="card stat-card text-white">
-                    <div class="card-body text-center">
-                        <i class="fas fa-newspaper fa-3x mb-3 opacity-75"></i>
-                        <h3 class="card-title">{{ stats.articles }}</h3>
-                        <p class="card-text">Total Articles</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6 mb-3">
-                <div class="card stat-card text-white">
-                    <div class="card-body text-center">
-                        <i class="fas fa-users fa-3x mb-3 opacity-75"></i>
-                        <h3 class="card-title">{{ stats.users }}</h3>
-                        <p class="card-text">Total Users</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6 mb-3">
-                <div class="card stat-card text-white">
-                    <div class="card-body text-center">
-                        <i class="fas fa-tags fa-3x mb-3 opacity-75"></i>
-                        <h3 class="card-title">{{ stats.categories }}</h3>
-                        <p class="card-text">Categories</p>
+                <div class="d-flex align-items-center">
+                    <span class="me-3">Welcome, {{ session.username }}!</span>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-2"></i>Profile
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-user me-2"></i>Edit Profile</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-key me-2"></i>Change Password</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                        </ul>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Management Modules -->
-        <div class="row">
-            <div class="col-lg-6 col-md-6 mb-4">
-                <div class="card dashboard-card text-white h-100">
-                    <div class="card-body text-center p-4">
-                        <div class="mb-4">
-                            <i class="fas fa-newspaper fa-4x text-primary"></i>
+        <!-- Content Wrapper -->
+        <div class="content-wrapper">
+            <!-- Statistics Cards -->
+            <div class="row">
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="stat-card">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon" style="background: rgba(52, 152, 219, 0.1); color: var(--accent-color);">
+                                <i class="fas fa-newspaper fa-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="fw-bold mb-0">{{ stats.articles }}</h3>
+                                <p class="text-muted mb-0">Total Articles</p>
+                            </div>
                         </div>
-                        <h4 class="card-title">Article Management</h4>
-                        <p class="card-text opacity-75">Create, edit, and manage news articles. Control publication status and organize content.</p>
-                        <a href="{{ url_for('articles_management') }}" class="btn btn-primary btn-lg">
-                            <i class="fas fa-edit me-2"></i>Manage Articles
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="stat-card success">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon" style="background: rgba(39, 174, 96, 0.1); color: var(--success-color);">
+                                <i class="fas fa-eye fa-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="fw-bold mb-0">{{ "{:,}".format(stats.total_views) }}</h3>
+                                <p class="text-muted mb-0">Total Views</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="stat-card warning">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon" style="background: rgba(243, 156, 18, 0.1); color: var(--warning-color);">
+                                <i class="fas fa-users fa-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="fw-bold mb-0">{{ stats.users }}</h3>
+                                <p class="text-muted mb-0">Active Users</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="stat-card danger">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon" style="background: rgba(231, 76, 60, 0.1); color: var(--danger-color);">
+                                <i class="fas fa-ad fa-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="fw-bold mb-0">{{ stats.ads }}</h3>
+                                <p class="text-muted mb-0">Active Ads</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Charts and Recent Activity -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="chart-card">
+                        <h5 class="fw-bold mb-4">Article Performance</h5>
+                        <canvas id="articleChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="quick-actions">
+                        <h5 class="fw-bold mb-4">Quick Actions</h5>
+                        <a href="{{ url_for('add_article') }}" class="action-btn">
+                            <i class="fas fa-plus me-2"></i>Create New Article
+                        </a>
+                        <a href="{{ url_for('ad_management') }}" class="action-btn success">
+                            <i class="fas fa-ad me-2"></i>Manage Ads
+                        </a>
+                        <a href="{{ url_for('layout_management') }}" class="action-btn warning">
+                            <i class="fas fa-paint-brush me-2"></i>Customize Layout
+                        </a>
+                        <a href="{{ url_for('site_settings') }}" class="action-btn">
+                            <i class="fas fa-cog me-2"></i>Site Settings
                         </a>
                     </div>
                 </div>
             </div>
             
-            <div class="col-lg-6 col-md-6 mb-4">
-                <div class="card dashboard-card text-white h-100">
-                    <div class="card-body text-center p-4">
-                        <div class="mb-4">
-                            <i class="fas fa-th-large fa-4x text-info"></i>
+            <!-- Recent Articles -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="recent-articles">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 class="fw-bold mb-0">Recent Articles</h5>
+                            <a href="{{ url_for('articles_management') }}" class="btn btn-outline-primary btn-sm">
+                                View All <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
                         </div>
-                        <h4 class="card-title">Layout Management</h4>
-                        <p class="card-text opacity-75">Customize homepage layouts, sidebar content, and overall site appearance.</p>
-                        <a href="{{ url_for('layout_management') }}" class="btn btn-info btn-lg">
-                            <i class="fas fa-paint-brush me-2"></i>Manage Layouts
-                        </a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-6 col-md-6 mb-4">
-                <div class="card dashboard-card text-white h-100">
-                    <div class="card-body text-center p-4">
-                        <div class="mb-4">
-                            <i class="fas fa-users fa-4x text-success"></i>
+                        
+                        {% if stats.recent_articles %}
+                        {% for article in stats.recent_articles %}
+                        <div class="article-item">
+                            <div class="article-icon">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ article.title[:50] }}{% if article.title|length > 50 %}...{% endif %}</h6>
+                                <small class="text-muted">
+                                    By {{ article.author }} • {{ article.created_at.strftime('%b %d, %Y') }}
+                                    {% if article.views %}• {{ article.views }} views{% endif %}
+                                </small>
+                            </div>
+                            <div>
+                                <span class="badge bg-{{ 'success' if article.status == 'published' else 'warning' }}">
+                                    {{ article.status.title() }}
+                                </span>
+                            </div>
                         </div>
-                        <h4 class="card-title">User Management</h4>
-                        <p class="card-text opacity-75">Manage user accounts, roles, and permissions. Control access to admin features.</p>
-                        <a href="{{ url_for('users_management') }}" class="btn btn-success btn-lg">
-                            <i class="fas fa-user-cog me-2"></i>Manage Users
-                        </a>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-lg-6 col-md-6 mb-4">
-                <div class="card dashboard-card text-white h-100">
-                    <div class="card-body text-center p-4">
-                        <div class="mb-4">
-                            <i class="fas fa-cog fa-4x text-warning"></i>
+                        {% endfor %}
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-newspaper fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No articles found. Create your first article!</p>
+                            <a href="{{ url_for('add_article') }}" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>Create Article
+                            </a>
                         </div>
-                        <h4 class="card-title">Site Settings</h4>
-                        <p class="card-text opacity-75">Configure site settings, SEO options, and general preferences.</p>
-                        <a href="{{ url_for('site_settings') }}" class="btn btn-warning btn-lg">
-                            <i class="fas fa-tools me-2"></i>Site Settings
-                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Quick Actions -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="glass-effect rounded p-4">
-                    <h5 class="text-white mb-3">
-                        <i class="fas fa-bolt text-warning me-2"></i>Quick Actions
-                    </h5>
-                    <div class="d-flex flex-wrap gap-2">
-                        <a href="{{ url_for('add_article') }}" class="btn btn-outline-light">
-                            <i class="fas fa-plus me-2"></i>New Article
-                        </a>
-                        <a href="{{ url_for('articles_management') }}" class="btn btn-outline-light">
-                            <i class="fas fa-list me-2"></i>View All Articles
-                        </a>
-                        <a href="/" target="_blank" class="btn btn-outline-light">
-                            <i class="fas fa-eye me-2"></i>Preview Site
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Toggle sidebar for mobile
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+        
+        // Article performance chart
+        const ctx = document.getElementById('articleChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                datasets: [{
+                    label: 'Articles Published',
+                    data: [12, 19, 8, 15, 22, 18],
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    tension: 0.4
+                }, {
+                    label: 'Total Views',
+                    data: [1200, 2100, 1800, 2400, 3200, 2800],
+                    borderColor: '#27ae60',
+                    backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                    tension: 0.4,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                    }
+                }
+            }
+        });
+        
+        // Auto-refresh dashboard data every 5 minutes
+        setInterval(function() {
+            location.reload();
+        }, 300000);
+    </script>
 </body>
 </html>
     """, stats=stats)
 
+# Continue with login and other routes...
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    """Admin login page"""
+    """Professional Admin Login"""
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -675,17 +1843,18 @@ def admin_login():
             flash('Username and password are required', 'error')
             return render_template_string(login_template())
         
-        # For simplicity, use default credentials when DB is not available
+        # Default credentials when DB is not available
         if username == 'admin' and password == 'admin123':
             session['user_id'] = 1
             session['username'] = 'admin'
+            flash('Welcome to Echhapa CMS!', 'success')
             return redirect(url_for('admin'))
         
         conn = get_db()
         if conn:
             try:
                 cur = conn.cursor()
-                cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+                cur.execute("SELECT * FROM users WHERE username = %s AND is_active = TRUE", (username,))
                 user = cur.fetchone()
                 cur.close()
                 conn.close()
@@ -693,6 +1862,17 @@ def admin_login():
                 if user and check_password_hash(user['password_hash'], password):
                     session['user_id'] = user['id']
                     session['username'] = user['username']
+                    flash(f'Welcome back, {user["first_name"] or user["username"]}!', 'success')
+                    
+                    # Update last login
+                    conn = get_db()
+                    if conn:
+                        cur = conn.cursor()
+                        cur.execute("UPDATE users SET last_login = NOW() WHERE id = %s", (user['id'],))
+                        conn.commit()
+                        cur.close()
+                        conn.close()
+                    
                     return redirect(url_for('admin'))
                 else:
                     flash('Invalid username or password', 'error')
@@ -704,77 +1884,198 @@ def admin_login():
     return render_template_string(login_template())
 
 def login_template():
-    """Return the login template HTML"""
+    """Professional login template"""
     return """
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login - Echhapa News</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <title>Admin Login - Echhapa CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { 
-            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            display: flex;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .login-card {
-            background: rgba(255, 255, 255, 0.1);
+        
+        .login-container {
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .login-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 3rem 2rem 2rem 2rem;
+            text-align: center;
+        }
+        
+        .login-body {
+            padding: 2rem;
+        }
+        
+        .form-control {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .input-group-text {
+            border-radius: 10px 0 0 10px;
+            border: 2px solid #e9ecef;
+            border-right: none;
+            background: #f8f9fa;
+        }
+        
+        .btn-login {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            transition: transform 0.3s ease;
+        }
+        
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .brand-icon {
+            width: 80px;
+            height: 80px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem auto;
+        }
+        
+        .floating-shapes {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+        
+        .floating-shapes::before,
+        .floating-shapes::after {
+            content: '';
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .floating-shapes::before {
+            width: 300px;
+            height: 300px;
+            top: -150px;
+            right: -150px;
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        .floating-shapes::after {
+            width: 200px;
+            height: 200px;
+            bottom: -100px;
+            left: -100px;
+            animation: float 4s ease-in-out infinite reverse;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
         }
     </style>
 </head>
-<body class="d-flex align-items-center">
+<body>
+    <div class="floating-shapes"></div>
+    
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-4">
-                <div class="card login-card shadow-lg">
-                    <div class="card-body p-5">
-                        <div class="text-center mb-4">
-                            <i class="fas fa-newspaper fa-3x text-primary mb-3"></i>
-                            <h2 class="text-white">Echhapa CMS</h2>
-                            <p class="text-muted">Admin Login</p>
+            <div class="col-md-6 col-lg-5">
+                <div class="login-container">
+                    <div class="login-header">
+                        <div class="brand-icon">
+                            <i class="fas fa-newspaper fa-2x"></i>
                         </div>
-                        
-                        {% with messages = get_flashed_messages() %}
+                        <h2 class="fw-bold mb-2">Echhapa CMS</h2>
+                        <p class="mb-0 opacity-75">Professional Content Management</p>
+                    </div>
+                    
+                    <div class="login-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
                         {% if messages %}
-                        {% for message in messages %}
-                        <div class="alert alert-danger">{{ message }}</div>
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
                         {% endfor %}
                         {% endif %}
                         {% endwith %}
                         
                         <form method="POST">
                             <div class="mb-3">
-                                <label class="form-label text-white">Username</label>
+                                <label class="form-label fw-semibold">Username</label>
                                 <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-user"></i></span>
-                                    <input type="text" class="form-control" name="username" required>
+                                    <span class="input-group-text">
+                                        <i class="fas fa-user text-muted"></i>
+                                    </span>
+                                    <input type="text" class="form-control" name="username" required placeholder="Enter your username">
                                 </div>
                             </div>
+                            
                             <div class="mb-4">
-                                <label class="form-label text-white">Password</label>
+                                <label class="form-label fw-semibold">Password</label>
                                 <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                                    <input type="password" class="form-control" name="password" required>
+                                    <span class="input-group-text">
+                                        <i class="fas fa-lock text-muted"></i>
+                                    </span>
+                                    <input type="password" class="form-control" name="password" required placeholder="Enter your password">
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100 btn-lg">
-                                <i class="fas fa-sign-in-alt me-2"></i>Login
+                            
+                            <button type="submit" class="btn btn-primary btn-login w-100">
+                                <i class="fas fa-sign-in-alt me-2"></i>Sign In
                             </button>
                         </form>
                         
                         <div class="text-center mt-4">
-                            <small class="text-muted">Default: admin / admin123</small><br>
-                            <a href="/" class="text-muted">&larr; Back to Website</a>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Default credentials: <strong>admin</strong> / <strong>admin123</strong>
+                            </small>
+                        </div>
+                        
+                        <div class="text-center mt-3">
+                            <a href="/" class="text-decoration-none">
+                                <i class="fas fa-arrow-left me-1"></i>Back to Website
+                            </a>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
     """
@@ -783,104 +2084,346 @@ def login_template():
 def admin_logout():
     """Admin logout"""
     session.clear()
+    flash('You have been logged out successfully.', 'info')
     return redirect(url_for('index'))
 
-# Article Management Routes
-@app.route('/admin/articles')
-def articles_management():
-    """Articles management page"""
+# Ad Management System
+@app.route('/admin/ads')
+def ad_management():
+    """Comprehensive Ad Management System"""
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
     
-    articles = get_articles(50)  # Get more articles for management
+    conn = get_db()
+    ads = []
+    
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM ads ORDER BY created_at DESC")
+            ads = cur.fetchall()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error fetching ads: {e}")
     
     return render_template_string("""
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Article Management - Echhapa News</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <title>Advertisement Management - Echhapa CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%); }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        :root {
+            --sidebar-width: 280px;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+        }
+        
+        body { background: #f8f9fa; }
+        .main-content { margin-left: var(--sidebar-width); }
+        .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: var(--sidebar-width); background: #34495e; color: white; z-index: 1000; overflow-y: auto; }
+        .sidebar-header { padding: 1.5rem; background: var(--primary-color); }
+        .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1.5rem; display: flex; align-items: center; text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent; }
+        .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
+        .nav-link i { width: 20px; margin-right: 0.75rem; }
+        
+        .ad-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .ad-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .ad-preview {
+            height: 150px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        
+        .placement-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+        }
+        
+        .stats-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg glass-effect mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-white" href="/admin">
-                <i class="fas fa-tachometer-alt me-2"></i>Echhapa CMS
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <a href="/admin" class="text-white text-decoration-none fw-bold fs-5">
+                <i class="fas fa-newspaper me-2"></i>Echhapa CMS
             </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link text-white" href="/admin">Dashboard</a>
-                <a class="nav-link text-white" href="/">View Site</a>
-                <a class="nav-link text-white" href="{{ url_for('admin_logout') }}">Logout</a>
-            </div>
+        </div>
+        <div class="py-3">
+            <a href="/admin" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+            <a href="{{ url_for('articles_management') }}" class="nav-link"><i class="fas fa-newspaper"></i>Articles</a>
+            <a href="{{ url_for('add_article') }}" class="nav-link"><i class="fas fa-plus"></i>New Article</a>
+            <a href="{{ url_for('ad_management') }}" class="nav-link active"><i class="fas fa-ad"></i>Advertisements</a>
+            <a href="{{ url_for('layout_management') }}" class="nav-link"><i class="fas fa-th-large"></i>Layout</a>
+            <a href="{{ url_for('users_management') }}" class="nav-link"><i class="fas fa-users"></i>Users</a>
+            <a href="{{ url_for('site_settings') }}" class="nav-link"><i class="fas fa-cog"></i>Settings</a>
+            <hr style="border-color: rgba(255,255,255,0.2);">
+            <a href="/" class="nav-link" target="_blank"><i class="fas fa-external-link-alt"></i>View Website</a>
+            <a href="{{ url_for('admin_logout') }}" class="nav-link"><i class="fas fa-sign-out-alt"></i>Logout</a>
         </div>
     </nav>
-
-    <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="text-white"><i class="fas fa-newspaper me-2"></i>Article Management</h1>
-            <a href="{{ url_for('add_article') }}" class="btn btn-primary">
-                <i class="fas fa-plus me-2"></i>Add New Article
-            </a>
-        </div>
-
-        <div class="glass-effect rounded p-4">
-            <div class="table-responsive">
-                <table class="table table-dark table-hover">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Title</th>
-                            <th>Author</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for article in articles %}
-                        <tr>
-                            <td>{{ article.id }}</td>
-                            <td>{{ article.title[:50] }}{% if article.title|length > 50 %}...{% endif %}</td>
-                            <td>{{ article.author }}</td>
-                            <td>
-                                <span class="badge bg-success">{{ article.status.title() }}</span>
-                            </td>
-                            <td>{{ article.created_at.strftime('%Y-%m-%d') if article.created_at.strftime else article.created_at }}</td>
-                            <td>
-                                <a href="/article/{{ article.slug or article.id }}" class="btn btn-sm btn-outline-info" target="_blank">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{{ url_for('edit_article', id=article.id) }}" class="btn btn-sm btn-outline-warning">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteArticle({{ article.id }})">
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container-fluid py-4">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1">Advertisement Management</h2>
+                    <p class="text-muted mb-0">Create and manage ads with advanced scheduling and placement options</p>
+                </div>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAdModal">
+                    <i class="fas fa-plus me-2"></i>Create New Ad
+                </button>
+            </div>
+            
+            <!-- Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <h3 class="text-primary mb-2">{{ ads|length }}</h3>
+                        <p class="text-muted mb-0">Total Ads</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <h3 class="text-success mb-2">{{ ads|selectattr('is_active')|list|length }}</h3>
+                        <p class="text-muted mb-0">Active Ads</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <h3 class="text-warning mb-2">0</h3>
+                        <p class="text-muted mb-0">Total Clicks</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card">
+                        <h3 class="text-info mb-2">0</h3>
+                        <p class="text-muted mb-0">Impressions</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Ads Grid -->
+            {% if ads %}
+            <div class="row">
+                {% for ad in ads %}
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="ad-card position-relative">
+                        <div class="placement-badge">
+                            <span class="badge bg-{{ 'success' if ad.is_active else 'secondary' }}">
+                                {{ 'Active' if ad.is_active else 'Inactive' }}
+                            </span>
+                        </div>
+                        
+                        <div class="p-3">
+                            <div class="ad-preview">
+                                {% if ad.image_url %}
+                                <img src="/{{ ad.image_url }}" class="img-fluid" style="max-height: 100%; max-width: 100%;" alt="{{ ad.title }}">
+                                {% else %}
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-image fa-3x mb-2"></i>
+                                    <p class="mb-0">No Image</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <h6 class="fw-bold mb-2">{{ ad.title }}</h6>
+                            {% if ad.description %}
+                            <p class="text-muted small mb-2">{{ ad.description[:100] }}{% if ad.description|length > 100 %}...{% endif %}</p>
+                            {% endif %}
+                            
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-primary">{{ ad.placement.replace('_', ' ').title() }}</span>
+                                <span class="badge bg-info">{{ ad.ad_type.title() }}</span>
+                            </div>
+                            
+                            {% if ad.start_date and ad.end_date %}
+                            <small class="text-muted d-block mb-2">
+                                <i class="fas fa-calendar me-1"></i>
+                                {{ ad.start_date }} to {{ ad.end_date }}
+                            </small>
+                            {% endif %}
+                            
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-primary flex-fill" onclick="editAd({{ ad.id }})">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn btn-sm btn-outline-{{ 'warning' if ad.is_active else 'success' }}" onclick="toggleAd({{ ad.id }})">
+                                    <i class="fas fa-{{ 'pause' if ad.is_active else 'play' }}"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteAd({{ ad.id }})">
                                     <i class="fas fa-trash"></i>
                                 </button>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-ad fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">No Advertisements Found</h4>
+                <p class="text-muted mb-4">Create your first advertisement to start monetizing your content</p>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAdModal">
+                    <i class="fas fa-plus me-2"></i>Create Your First Ad
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+    
+    <!-- Add/Edit Ad Modal -->
+    <div class="modal fade" id="addAdModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Advertisement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="{{ url_for('add_ad') }}" method="POST" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Ad Title *</label>
+                                    <input type="text" class="form-control" name="title" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Description</label>
+                                    <textarea class="form-control" name="description" rows="3" placeholder="Brief description of the ad"></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Click URL</label>
+                                    <input type="url" class="form-control" name="click_url" placeholder="https://example.com">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Ad Type</label>
+                                    <select class="form-control" name="ad_type">
+                                        <option value="banner">Banner Ad</option>
+                                        <option value="sidebar">Sidebar Ad</option>
+                                        <option value="popup">Popup Ad</option>
+                                        <option value="inline">Inline Content Ad</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Placement Location *</label>
+                                    <select class="form-control" name="placement" required>
+                                        <option value="header">Header</option>
+                                        <option value="sidebar_top">Sidebar Top</option>
+                                        <option value="sidebar_middle">Sidebar Middle</option>
+                                        <option value="sidebar_bottom">Sidebar Bottom</option>
+                                        <option value="content_top">Content Top</option>
+                                        <option value="content_middle">Content Middle</option>
+                                        <option value="content_bottom">Content Bottom</option>
+                                        <option value="footer">Footer</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Priority</label>
+                                    <select class="form-control" name="priority">
+                                        <option value="1">Low</option>
+                                        <option value="2" selected>Medium</option>
+                                        <option value="3">High</option>
+                                        <option value="4">Urgent</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Start Date</label>
+                                            <input type="date" class="form-control" name="start_date">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">End Date</label>
+                                            <input type="date" class="form-control" name="end_date">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Ad Image</label>
+                                    <input type="file" class="form-control" name="ad_image" accept="image/*">
+                                    <small class="text-muted">Supported: JPG, PNG, GIF, WebP (Max: 5MB)</small>
+                                </div>
+                                
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="is_active" checked>
+                                    <label class="form-check-label">Activate immediately</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Create Advertisement
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function deleteArticle(id) {
-            if (confirm('Are you sure you want to delete this article?')) {
-                fetch('/admin/articles/' + id + '/delete', {
+        function editAd(id) {
+            // Implementation for editing ads
+            alert('Edit functionality coming soon!');
+        }
+        
+        function toggleAd(id) {
+            if (confirm('Are you sure you want to change the status of this ad?')) {
+                fetch(`/admin/ads/${id}/toggle`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                }).then(() => location.reload());
+            }
+        }
+        
+        function deleteAd(id) {
+            if (confirm('Are you sure you want to delete this advertisement? This action cannot be undone.')) {
+                fetch(`/admin/ads/${id}/delete`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                 }).then(() => location.reload());
@@ -889,696 +2432,52 @@ def articles_management():
     </script>
 </body>
 </html>
-    """, articles=articles)
+    """, ads=ads)
 
-@app.route('/admin/articles/add', methods=['GET', 'POST'])
-def add_article():
-    """Add new article"""
+@app.route('/admin/ads/add', methods=['POST'])
+def add_ad():
+    """Add new advertisement"""
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
     
-    if request.method == 'POST':
-        title = request.form.get('title')
-        content = request.form.get('content')
-        author = request.form.get('author', 'Admin')
-        status = request.form.get('status', 'published')
-        slug = title.lower().replace(' ', '-').replace(',', '').replace(':', '') if title else ''
-        
-        conn = get_db()
-        if conn:
-            try:
-                cur = conn.cursor()
-                cur.execute("INSERT INTO articles (title, content, author, status, slug) VALUES (%s, %s, %s, %s, %s)",
-                           (title, content, author, status, slug))
-                conn.commit()
-                cur.close()
-                conn.close()
-                flash('Article added successfully!', 'success')
-                return redirect(url_for('articles_management'))
-            except Exception as e:
-                flash(f'Error adding article: {str(e)}', 'error')
-        else:
-            flash('Database not available', 'error')
+    title = request.form.get('title')
+    description = request.form.get('description')
+    click_url = request.form.get('click_url')
+    placement = request.form.get('placement')
+    ad_type = request.form.get('ad_type', 'banner')
+    priority = int(request.form.get('priority', 1))
+    start_date = request.form.get('start_date') or None
+    end_date = request.form.get('end_date') or None
+    is_active = 'is_active' in request.form
     
-    return render_template_string("""
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Article - Echhapa News</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%); }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg glass-effect mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-white" href="/admin">
-                <i class="fas fa-tachometer-alt me-2"></i>Echhapa CMS
-            </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link text-white" href="/admin">Dashboard</a>
-                <a class="nav-link text-white" href="{{ url_for('articles_management') }}">Articles</a>
-                <a class="nav-link text-white" href="{{ url_for('admin_logout') }}">Logout</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        <h1 class="text-white mb-4"><i class="fas fa-plus me-2"></i>Add New Article</h1>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }}">{{ message }}</div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
-
-        <div class="glass-effect rounded p-4">
-            <form method="POST">
-                <div class="mb-3">
-                    <label class="form-label text-white">Title</label>
-                    <input type="text" class="form-control" name="title" required>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label text-white">Author</label>
-                    <input type="text" class="form-control" name="author" value="Admin">
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label text-white">Status</label>
-                    <select class="form-control" name="status">
-                        <option value="published">Published</option>
-                        <option value="draft">Draft</option>
-                    </select>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label text-white">Content</label>
-                    <textarea class="form-control" name="content" rows="15" required placeholder="Write your article content here..."></textarea>
-                </div>
-                
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i>Save Article
-                    </button>
-                    <a href="{{ url_for('articles_management') }}" class="btn btn-secondary">
-                        <i class="fas fa-times me-2"></i>Cancel
-                    </a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-    """)
-
-@app.route('/admin/articles/<int:id>/edit', methods=['GET', 'POST'])
-def edit_article(id):
-    """Edit article"""
-    if 'user_id' not in session:
-        return redirect(url_for('admin_login'))
-    
-    # Get article
-    article = None
-    conn = get_db()
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM articles WHERE id = %s", (id,))
-            article = cur.fetchone()
-            cur.close()
-            conn.close()
-        except:
-            pass
-    
-    if not article:
-        flash('Article not found', 'error')
-        return redirect(url_for('articles_management'))
-    
-    if request.method == 'POST':
-        title = request.form.get('title')
-        content = request.form.get('content')
-        author = request.form.get('author', 'Admin')
-        status = request.form.get('status', 'published')
-        slug = title.lower().replace(' ', '-').replace(',', '').replace(':', '') if title else article['slug']
-        
-        conn = get_db()
-        if conn:
-            try:
-                cur = conn.cursor()
-                cur.execute("UPDATE articles SET title=%s, content=%s, author=%s, status=%s, slug=%s WHERE id=%s",
-                           (title, content, author, status, slug, id))
-                conn.commit()
-                cur.close()
-                conn.close()
-                flash('Article updated successfully!', 'success')
-                return redirect(url_for('articles_management'))
-            except Exception as e:
-                flash(f'Error updating article: {str(e)}', 'error')
-    
-    return render_template_string("""
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Article - Echhapa News</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%); }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg glass-effect mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-white" href="/admin">
-                <i class="fas fa-tachometer-alt me-2"></i>Echhapa CMS
-            </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link text-white" href="/admin">Dashboard</a>
-                <a class="nav-link text-white" href="{{ url_for('articles_management') }}">Articles</a>
-                <a class="nav-link text-white" href="{{ url_for('admin_logout') }}">Logout</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        <h1 class="text-white mb-4"><i class="fas fa-edit me-2"></i>Edit Article</h1>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }}">{{ message }}</div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
-
-        <div class="glass-effect rounded p-4">
-            <form method="POST">
-                <div class="mb-3">
-                    <label class="form-label text-white">Title</label>
-                    <input type="text" class="form-control" name="title" value="{{ article.title }}" required>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label text-white">Author</label>
-                    <input type="text" class="form-control" name="author" value="{{ article.author }}">
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label text-white">Status</label>
-                    <select class="form-control" name="status">
-                        <option value="published" {% if article.status == 'published' %}selected{% endif %}>Published</option>
-                        <option value="draft" {% if article.status == 'draft' %}selected{% endif %}>Draft</option>
-                    </select>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label text-white">Content</label>
-                    <textarea class="form-control" name="content" rows="15" required>{{ article.content }}</textarea>
-                </div>
-                
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i>Update Article
-                    </button>
-                    <a href="{{ url_for('articles_management') }}" class="btn btn-secondary">
-                        <i class="fas fa-times me-2"></i>Cancel
-                    </a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-    """, article=article)
-
-@app.route('/admin/articles/<int:id>/delete', methods=['POST'])
-def delete_article(id):
-    """Delete article"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
+    # Handle file upload
+    image_url = None
+    if 'ad_image' in request.files:
+        file = request.files['ad_image']
+        if file and file.filename:
+            image_url = handle_file_upload(file, 'ads')
     
     conn = get_db()
     if conn:
         try:
             cur = conn.cursor()
-            cur.execute("DELETE FROM articles WHERE id = %s", (id,))
+            cur.execute("""INSERT INTO ads (title, description, image_url, click_url, placement, ad_type, 
+                          start_date, end_date, is_active, priority) 
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                       (title, description, image_url, click_url, placement, ad_type, 
+                        start_date, end_date, is_active, priority))
             conn.commit()
             cur.close()
             conn.close()
-            return jsonify({'success': True})
+            flash('Advertisement created successfully!', 'success')
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            flash(f'Error creating advertisement: {str(e)}', 'error')
+    else:
+        flash('Database not available', 'error')
     
-    return jsonify({'error': 'Database not available'}), 500
+    return redirect(url_for('ad_management'))
 
-# Layout Management
-@app.route('/admin/layout')
-def layout_management():
-    """Layout management page"""
-    if 'user_id' not in session:
-        return redirect(url_for('admin_login'))
-    
-    return render_template_string("""
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Layout Management - Echhapa News</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%); }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg glass-effect mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-white" href="/admin">
-                <i class="fas fa-tachometer-alt me-2"></i>Echhapa CMS
-            </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link text-white" href="/admin">Dashboard</a>
-                <a class="nav-link text-white" href="/">View Site</a>
-                <a class="nav-link text-white" href="{{ url_for('admin_logout') }}">Logout</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        <h1 class="text-white mb-4"><i class="fas fa-th-large me-2"></i>Layout Management</h1>
-
-        <div class="row">
-            <div class="col-lg-4 mb-4">
-                <div class="glass-effect rounded p-4 text-center">
-                    <i class="fas fa-palette fa-3x text-primary mb-3"></i>
-                    <h5 class="text-white">Theme Settings</h5>
-                    <p class="text-muted">Customize colors, fonts, and overall appearance</p>
-                    <button class="btn btn-primary">Configure Theme</button>
-                </div>
-            </div>
-            
-            <div class="col-lg-4 mb-4">
-                <div class="glass-effect rounded p-4 text-center">
-                    <i class="fas fa-columns fa-3x text-info mb-3"></i>
-                    <h5 class="text-white">Sidebar Management</h5>
-                    <p class="text-muted">Configure sidebar widgets and content</p>
-                    <button class="btn btn-info">Manage Sidebar</button>
-                </div>
-            </div>
-            
-            <div class="col-lg-4 mb-4">
-                <div class="glass-effect rounded p-4 text-center">
-                    <i class="fas fa-home fa-3x text-success mb-3"></i>
-                    <h5 class="text-white">Homepage Layout</h5>
-                    <p class="text-muted">Arrange homepage sections and featured content</p>
-                    <button class="btn btn-success">Edit Homepage</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="glass-effect rounded p-4 mt-4">
-            <h5 class="text-white mb-3">Quick Layout Options</h5>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" checked>
-                        <label class="form-check-label text-white">Show Breaking News Ticker</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" checked>
-                        <label class="form-check-label text-white">Display Newsletter Signup</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" checked>
-                        <label class="form-check-label text-white">Show Social Media Links</label>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" checked>
-                        <label class="form-check-label text-white">Enable Search Functionality</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" checked>
-                        <label class="form-check-label text-white">Show Categories in Sidebar</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox">
-                        <label class="form-check-label text-white">Dark Mode Toggle</label>
-                    </div>
-                </div>
-            </div>
-            <button class="btn btn-primary mt-3">Save Layout Settings</button>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-    """)
-
-# User Management
-@app.route('/admin/users')
-def users_management():
-    """User management page"""
-    if 'user_id' not in session:
-        return redirect(url_for('admin_login'))
-    
-    return render_template_string("""
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Management - Echhapa News</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%); }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg glass-effect mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-white" href="/admin">
-                <i class="fas fa-tachometer-alt me-2"></i>Echhapa CMS
-            </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link text-white" href="/admin">Dashboard</a>
-                <a class="nav-link text-white" href="/">View Site</a>
-                <a class="nav-link text-white" href="{{ url_for('admin_logout') }}">Logout</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="text-white"><i class="fas fa-users me-2"></i>User Management</h1>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
-                <i class="fas fa-plus me-2"></i>Add New User
-            </button>
-        </div>
-
-        <div class="glass-effect rounded p-4">
-            <div class="table-responsive">
-                <table class="table table-dark table-hover">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Username</th>
-                            <th>Role</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>1</td>
-                            <td>admin</td>
-                            <td><span class="badge bg-danger">Admin</span></td>
-                            <td>2025-01-01</td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-warning">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-info">
-                                    <i class="fas fa-key"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- User Roles Management -->
-        <div class="glass-effect rounded p-4 mt-4">
-            <h5 class="text-white mb-3">User Roles & Permissions</h5>
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="card bg-danger">
-                        <div class="card-body text-center">
-                            <i class="fas fa-crown fa-2x mb-2"></i>
-                            <h6>Administrator</h6>
-                            <small>Full access to all features</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card bg-warning">
-                        <div class="card-body text-center">
-                            <i class="fas fa-user-edit fa-2x mb-2"></i>
-                            <h6>Editor</h6>
-                            <small>Can create and edit articles</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card bg-info">
-                        <div class="card-body text-center">
-                            <i class="fas fa-user fa-2x mb-2"></i>
-                            <h6>Author</h6>
-                            <small>Can create own articles</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add User Modal -->
-    <div class="modal fade" id="addUserModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content bg-dark">
-                <div class="modal-header">
-                    <h5 class="modal-title text-white">Add New User</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form>
-                        <div class="mb-3">
-                            <label class="form-label text-white">Username</label>
-                            <input type="text" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-white">Password</label>
-                            <input type="password" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-white">Role</label>
-                            <select class="form-control">
-                                <option value="admin">Administrator</option>
-                                <option value="editor">Editor</option>
-                                <option value="author">Author</option>
-                            </select>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary">Add User</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-    """)
-
-# Site Settings
-@app.route('/admin/settings')
-def site_settings():
-    """Site settings page"""
-    if 'user_id' not in session:
-        return redirect(url_for('admin_login'))
-    
-    return render_template_string("""
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Site Settings - Echhapa News</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%); }
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg glass-effect mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-white" href="/admin">
-                <i class="fas fa-tachometer-alt me-2"></i>Echhapa CMS
-            </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link text-white" href="/admin">Dashboard</a>
-                <a class="nav-link text-white" href="/">View Site</a>
-                <a class="nav-link text-white" href="{{ url_for('admin_logout') }}">Logout</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container">
-        <h1 class="text-white mb-4"><i class="fas fa-cog me-2"></i>Site Settings</h1>
-
-        <div class="row">
-            <div class="col-lg-8">
-                <div class="glass-effect rounded p-4 mb-4">
-                    <h5 class="text-white mb-3">General Settings</h5>
-                    <form>
-                        <div class="mb-3">
-                            <label class="form-label text-white">Site Title</label>
-                            <input type="text" class="form-control" value="Echhapa News">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-white">Site Description</label>
-                            <textarea class="form-control" rows="3">Your trusted source for news and information</textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-white">Contact Email</label>
-                            <input type="email" class="form-control" value="admin@echhapa.com">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-white">Timezone</label>
-                            <select class="form-control">
-                                <option>UTC</option>
-                                <option>America/New_York</option>
-                                <option>Europe/London</option>
-                                <option>Asia/Tokyo</option>
-                            </select>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="glass-effect rounded p-4 mb-4">
-                    <h5 class="text-white mb-3">SEO Settings</h5>
-                    <form>
-                        <div class="mb-3">
-                            <label class="form-label text-white">Meta Description</label>
-                            <textarea class="form-control" rows="2">Echhapa News - Your trusted source for breaking news, technology updates, and global coverage</textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-white">Meta Keywords</label>
-                            <input type="text" class="form-control" value="news, breaking news, technology, global, updates">
-                        </div>
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" checked>
-                                <label class="form-check-label text-white">Enable Search Engine Indexing</label>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="col-lg-4">
-                <div class="glass-effect rounded p-4 mb-4">
-                    <h5 class="text-white mb-3">Database Settings</h5>
-                    <div class="mb-3">
-                        <label class="text-white">Database Type</label>
-                        <p class="text-success"><i class="fas fa-database me-2"></i>MySQL</p>
-                    </div>
-                    <div class="mb-3">
-                        <label class="text-white">Connection Status</label>
-                        <p class="text-warning"><i class="fas fa-exclamation-triangle me-2"></i>Ready for Local Setup</p>
-                    </div>
-                    <small class="text-muted">Configure your local MySQL database connection when deploying.</small>
-                </div>
-
-                <div class="glass-effect rounded p-4 mb-4">
-                    <h5 class="text-white mb-3">Performance</h5>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" checked>
-                            <label class="form-check-label text-white">Enable Caching</label>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox">
-                            <label class="form-check-label text-white">Compress Images</label>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" checked>
-                            <label class="form-check-label text-white">Minify CSS/JS</label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="glass-effect rounded p-4">
-                    <h5 class="text-white mb-3">Security</h5>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" checked>
-                            <label class="form-check-label text-white">Force HTTPS</label>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" checked>
-                            <label class="form-check-label text-white">Enable CSRF Protection</label>
-                        </div>
-                    </div>
-                    <button class="btn btn-warning btn-sm">Change Admin Password</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="text-center mt-4">
-            <button class="btn btn-success btn-lg">
-                <i class="fas fa-save me-2"></i>Save All Settings
-            </button>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-    """)
+# Additional admin routes are included in this file
 
 # Initialize database when app starts
 with app.app_context():
