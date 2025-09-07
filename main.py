@@ -66,14 +66,16 @@ def init_db():
         
         # Insert default admin user (admin/admin123)
         cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
-        if cur.fetchone()[0] == 0:
+        count_result = cur.fetchone()
+        if count_result and count_result[0] == 0:
             password_hash = generate_password_hash('admin123')
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)",
                        ('admin', password_hash, 'admin'))
         
         # Insert sample articles if none exist
         cur.execute("SELECT COUNT(*) FROM articles")
-        if cur.fetchone()[0] == 0:
+        count_result = cur.fetchone()
+        if count_result and count_result[0] == 0:
             sample_articles = [
                 ("Breaking: Major Economic Development Announced", "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris. This is a sample article to demonstrate the news portal functionality."),
                 ("Technology Advances in 2025", "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium. Totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt. The technology sector continues to evolve rapidly."),
@@ -354,32 +356,9 @@ def admin():
 </html>
     """)
 
-@app.route('/admin/login', methods=['GET', 'POST'])
-def admin_login():
-    """Admin login page"""
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        conn = get_db()
-        if conn:
-            try:
-                cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-                cur.execute("SELECT * FROM users WHERE username = %s", (username,))
-                user = cur.fetchone()
-                cur.close()
-                conn.close()
-                
-                if user and check_password_hash(user['password_hash'], password):
-                    session['user_id'] = user['id']
-                    session['username'] = user['username']
-                    return redirect(url_for('admin'))
-                else:
-                    flash('Invalid username or password', 'error')
-            except Exception as e:
-                flash(f'Database error: {str(e)}', 'error')
-    
-    return render_template_string("""
+def login_template():
+    """Return the login template HTML"""
+    return """
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
@@ -422,7 +401,7 @@ def admin_login():
                         
                         <div class="text-center mt-4">
                             <small class="text-muted">Default: admin / admin123</small><br>
-                            <a href="/" class="text-muted">← Back to Website</a>
+                            <a href="/" class="text-muted">&larr; Back to Website</a>
                         </div>
                     </div>
                 </div>
@@ -431,7 +410,38 @@ def admin_login():
     </div>
 </body>
 </html>
-    """)
+    """
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """Admin login page"""
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if not username or not password:
+            flash('Username and password are required', 'error')
+            return render_template_string(login_template())
+        
+        conn = get_db()
+        if conn:
+            try:
+                cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+                cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+                user = cur.fetchone()
+                cur.close()
+                conn.close()
+                
+                if user and check_password_hash(user['password_hash'], password):
+                    session['user_id'] = user['id']
+                    session['username'] = user['username']
+                    return redirect(url_for('admin'))
+                else:
+                    flash('Invalid username or password', 'error')
+            except Exception as e:
+                flash(f'Database error: {str(e)}', 'error')
+    
+    return render_template_string(login_template())
 
 @app.route('/admin/logout')
 def admin_logout():
