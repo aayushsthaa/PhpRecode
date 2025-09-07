@@ -5,6 +5,7 @@ requireAuth();
 $pageTitle = 'Dashboard';
 
 // Get dashboard statistics
+global $pdo;
 $stmt = $pdo->query("SELECT COUNT(*) FROM articles WHERE status = 'published'");
 $publishedArticles = $stmt->fetchColumn();
 

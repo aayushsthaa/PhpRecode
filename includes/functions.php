@@ -150,9 +150,8 @@ function getSidebarWidgets() {
 function getBaseUrl() {
     $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'];
-    $script = $_SERVER['SCRIPT_NAME'];
-    $path = str_replace(basename($script), '', $script);
-    return $protocol . '://' . $host . $path;
+    // Use the root path to avoid double admin paths
+    return $protocol . '://' . $host . '/';
 }
 
 function url($path = '') {
