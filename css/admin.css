@@ -1,0 +1,290 @@
+/* Admin Dashboard Styles */
+
+/* Sidebar */
+.sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 48px 0 0;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+}
+
+.sidebar-sticky {
+    position: relative;
+    top: 0;
+    height: calc(100vh - 48px);
+    padding-top: .5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.sidebar .nav-link {
+    font-weight: 500;
+    color: #333;
+    padding: 0.75rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.sidebar .nav-link:hover {
+    color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.sidebar .nav-link.active {
+    color: #007bff;
+    background-color: rgba(0, 123, 255, 0.15);
+    border-right: 3px solid #007bff;
+}
+
+.sidebar .nav-link .feather {
+    margin-right: 4px;
+    color: #999;
+}
+
+.sidebar-heading {
+    font-size: .75rem;
+    text-transform: uppercase;
+}
+
+/* Main content */
+[role="main"] {
+    padding-top: 133px;
+}
+
+.border-left-primary {
+    border-left: 0.25rem solid #007bff !important;
+}
+
+.border-left-success {
+    border-left: 0.25rem solid #28a745 !important;
+}
+
+.border-left-info {
+    border-left: 0.25rem solid #17a2b8 !important;
+}
+
+.border-left-warning {
+    border-left: 0.25rem solid #ffc107 !important;
+}
+
+/* Form styles */
+.form-floating > label {
+    color: #6c757d;
+}
+
+.form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Table styles */
+.table th {
+    font-weight: 600;
+    border-top: none;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+/* Card styles */
+.card {
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border: 1px solid #e3e6f0;
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+}
+
+/* Button styles */
+.btn-circle {
+    width: 2rem;
+    height: 2rem;
+    text-align: center;
+    padding: 6px 0;
+    font-size: 12px;
+    line-height: 1.428571429;
+    border-radius: 15px;
+}
+
+/* Drag and drop styles */
+.sortable-ghost {
+    opacity: 0.4;
+}
+
+.sortable-chosen {
+    cursor: grabbing;
+}
+
+.drag-handle {
+    cursor: grab;
+    color: #6c757d;
+}
+
+.drag-handle:hover {
+    color: #007bff;
+}
+
+/* Layout management */
+.layout-section {
+    border: 2px dashed #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.layout-section:hover {
+    border-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.layout-section.active {
+    border-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.section-controls {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.layout-section:hover .section-controls {
+    opacity: 1;
+}
+
+/* Media library */
+.media-item {
+    position: relative;
+    border-radius: 0.375rem;
+    overflow: hidden;
+    transition: transform 0.2s ease;
+}
+
+.media-item:hover {
+    transform: scale(1.05);
+}
+
+.media-item .media-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.media-item:hover .media-overlay {
+    opacity: 1;
+}
+
+/* File upload */
+.upload-area {
+    border: 3px dashed #dee2e6;
+    border-radius: 0.5rem;
+    padding: 3rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-area:hover,
+.upload-area.dragover {
+    border-color: #007bff;
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.upload-area.dragover {
+    transform: scale(1.02);
+}
+
+/* Progress bars */
+.progress {
+    height: 0.5rem;
+}
+
+.progress-bar {
+    transition: width 0.6s ease;
+}
+
+/* Alerts and notifications */
+.alert {
+    border: 0;
+    border-radius: 0.5rem;
+}
+
+.alert-dismissible .btn-close {
+    padding: 0.5rem 0.75rem;
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Dark mode adjustments */
+[data-bs-theme="dark"] .sidebar .nav-link {
+    color: #adb5bd;
+}
+
+[data-bs-theme="dark"] .sidebar .nav-link:hover {
+    color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.15);
+}
+
+[data-bs-theme="dark"] .sidebar .nav-link.active {
+    color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.2);
+}
+
+[data-bs-theme="dark"] .layout-section {
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .layout-section:hover {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 767.98px) {
+    .sidebar {
+        top: 5rem;
+        padding: 0;
+    }
+    
+    [role="main"] {
+        padding-top: 5rem;
+    }
+}
+
+/* Print styles for admin */
+@media print {
+    .sidebar,
+    .btn,
+    .navbar,
+    .card-header .dropdown {
+        display: none !important;
+    }
+    
+    [role="main"] {
+        padding-top: 0 !important;
+        margin-left: 0 !important;
+    }
+}
