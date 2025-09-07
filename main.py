@@ -1163,58 +1163,139 @@ def article_detail(slug):
             color: var(--accent-color) !important; 
         }
         
+        /* Professional Article Design */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+            line-height: 1.7;
+            color: #1a1a1a;
+            background-color: #ffffff;
+        }
+        
+        .navbar-brand {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            font-weight: 900;
+            font-size: 1.8rem;
+            color: #000000 !important;
+            letter-spacing: -1px;
+        }
+        
         .article-header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, #34495e 100%);
-            color: white;
-            padding: 3rem 0;
+            border-bottom: 1px solid #e5e5e5;
+            padding: 30px 0;
+            background-color: #ffffff;
+        }
+        
+        .article-title {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.1;
+            color: #000000;
+            margin-bottom: 20px;
+        }
+        
+        .article-meta {
+            border-top: 1px solid #e5e5e5;
+            border-bottom: 1px solid #e5e5e5;
+            padding: 15px 0;
+            margin: 20px 0 30px;
+            font-size: 0.85rem;
+            color: #666666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .article-excerpt {
+            font-size: 1.25rem;
+            line-height: 1.6;
+            color: #666666;
+            margin-bottom: 30px;
+            font-style: italic;
         }
         
         .article-content {
+            max-width: 65ch;
             font-size: 1.1rem;
-            line-height: 1.8;
-            color: #444;
+            line-height: 1.7;
+            color: #1a1a1a;
+            margin: 0 auto;
         }
         
-        .article-content h1, .article-content h2, .article-content h3 {
-            color: var(--primary-color);
-            margin: 2rem 0 1rem 0;
+        .article-content h2,
+        .article-content h3,
+        .article-content h4 {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            color: #000000;
+            margin: 2rem 0 1rem;
+            font-weight: 600;
+        }
+        
+        .article-content h2 {
+            font-size: 1.5rem;
+            border-bottom: 1px solid #e5e5e5;
+            padding-bottom: 10px;
+        }
+        
+        .article-content h3 {
+            font-size: 1.3rem;
         }
         
         .article-content p {
             margin-bottom: 1.5rem;
         }
         
-        .article-content ul, .article-content ol {
+        .article-content blockquote {
+            border-left: 3px solid #000000;
+            padding-left: 20px;
+            margin: 2rem 0;
+            font-style: italic;
+            color: #666666;
+        }
+        
+        .article-content ul,
+        .article-content ol {
             margin-bottom: 1.5rem;
-            padding-left: 2rem;
+            padding-left: 1.5rem;
         }
         
         .article-content li {
             margin-bottom: 0.5rem;
         }
         
-        .social-share {
-            position: sticky;
-            top: 100px;
+        .category-badge {
+            background-color: #000000;
+            color: #ffffff;
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: inline-block;
+        }
+        
+        .share-tools {
+            border-top: 1px solid #e5e5e5;
+            padding-top: 20px;
+            margin-top: 30px;
         }
         
         .share-button {
-            display: block;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            margin-bottom: 10px;
-            color: white;
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            background-color: #000000;
+            color: #ffffff;
+            margin-right: 10px;
+            transition: background-color 0.2s ease;
             text-decoration: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.3s ease;
         }
         
         .share-button:hover {
-            transform: scale(1.1);
-            color: white;
+            background-color: #333333;
+            color: #ffffff;
         }
         
         .share-facebook { background: #3b5998; }
@@ -1259,34 +1340,78 @@ def article_detail(slug):
     </nav>
 
     <!-- Article Header -->
-    <section class="article-header">
+    <header class="article-header">
         <div class="container">
             <div class="row">
-                <div class="col-lg-8 mx-auto text-center">
-                    {% if article.category_name %}
-                    <span class="badge bg-light text-dark mb-3 px-3 py-2">{{ article.category_name }}</span>
-                    {% endif %}
-                    <h1 class="display-4 fw-bold mb-4">{{ article.title }}</h1>
-                    {% if article.excerpt %}
-                    <p class="lead mb-4">{{ article.excerpt }}</p>
-                    {% endif %}
-                    <div class="d-flex justify-content-center align-items-center text-light opacity-75">
-                        <div class="me-4">
-                            <i class="fas fa-user me-2"></i>{{ article.author }}
-                        </div>
-                        <div class="me-4">
-                            <i class="fas fa-calendar me-2"></i>{{ article.created_at.strftime('%B %d, %Y') if article.created_at.strftime else article.created_at }}
-                        </div>
-                        {% if article.views %}
-                        <div>
-                            <i class="fas fa-eye me-2"></i>{{ article.views }} views
-                        </div>
-                        {% endif %}
-                    </div>
+                <div class="col-md-8">
+                    <a href="/" class="navbar-brand">Echhapa News</a>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="/" class="btn btn-outline-dark btn-sm">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Home
+                    </a>
                 </div>
             </div>
         </div>
-    </section>
+    </header>
+    
+    <!-- Article Content -->
+    <div class="container py-5">
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <article>
+                    {% if article.category_name %}
+                    <span class="category-badge">{{ article.category_name }}</span>
+                    {% endif %}
+                    
+                    <h1 class="article-title">{{ article.title }}</h1>
+                    
+                    <div class="article-meta">
+                        <span class="meta-item">By {{ article.author }}</span>
+                        <span class="meta-item">{{ article.created_at.strftime('%B %d, %Y') if article.created_at.strftime else article.created_at }}</span>
+                        {% if article.views %}
+                        <span class="meta-item">{{ article.views }} views</span>
+                        {% endif %}
+                    </div>
+                    
+                    {% if article.excerpt %}
+                    <div class="article-excerpt">{{ article.excerpt }}</div>
+                    {% endif %}
+                    
+                    {% if article.featured_image %}
+                    <img src="{{ article.featured_image }}" class="img-fluid article-image mb-4" alt="{{ article.title }}">
+                    {% endif %}
+                    
+                    <div class="article-content">
+                        {{ article.content | safe }}
+                    </div>
+                    
+                    <!-- Share Tools -->
+                    <div class="share-tools">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <strong>Share this article:</strong>
+                            </div>
+                            <div class="col-md-6 text-md-end">
+                                <a href="#" class="share-button" onclick="shareArticle('facebook')">
+                                    <i class="fab fa-facebook-f"></i>
+                                </a>
+                                <a href="#" class="share-button" onclick="shareArticle('twitter')">
+                                    <i class="fab fa-twitter"></i>
+                                </a>
+                                <a href="#" class="share-button" onclick="shareArticle('linkedin')">
+                                    <i class="fab fa-linkedin-in"></i>
+                                </a>
+                                <a href="#" class="share-button" onclick="shareArticle('whatsapp')">
+                                    <i class="fab fa-whatsapp"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </div>
 
     <div class="container py-5">
         <div class="row">
