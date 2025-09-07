@@ -101,22 +101,22 @@ include '../includes/admin-header.php';
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3 mb-3">
-                            <a href="/admin/article-edit.php" class="btn btn-primary btn-block">
+                            <a href="<?php echo adminUrl('article-edit.php'); ?>" class="btn btn-primary btn-block">
                                 <i class="fas fa-plus me-2"></i>New Article
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <a href="/admin/layouts.php" class="btn btn-info btn-block">
+                            <a href="<?php echo adminUrl('layouts.php'); ?>" class="btn btn-info btn-block">
                                 <i class="fas fa-th-large me-2"></i>Manage Layouts
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <a href="/admin/categories.php" class="btn btn-success btn-block">
+                            <a href="<?php echo adminUrl('categories.php'); ?>" class="btn btn-success btn-block">
                                 <i class="fas fa-tags me-2"></i>Manage Categories
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <a href="/admin/settings.php" class="btn btn-warning btn-block">
+                            <a href="<?php echo adminUrl('settings.php'); ?>" class="btn btn-warning btn-block">
                                 <i class="fas fa-cog me-2"></i>Site Settings
                             </a>
                         </div>
@@ -132,13 +132,13 @@ include '../includes/admin-header.php';
             <div class="card shadow">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h6 class="m-0 font-weight-bold text-primary">Recent Articles</h6>
-                    <a href="/admin/articles.php" class="btn btn-sm btn-primary">View All</a>
+                    <a href="<?php echo adminUrl('articles.php'); ?>" class="btn btn-sm btn-primary">View All</a>
                 </div>
                 <div class="card-body">
                     <?php if (empty($recentArticles)): ?>
                     <div class="text-center py-4">
                         <i class="fas fa-newspaper fa-3x text-muted mb-3"></i>
-                        <p class="text-muted">No articles found. <a href="/admin/article-edit.php">Create your first article</a>.</p>
+                        <p class="text-muted">No articles found. <a href="<?php echo adminUrl('article-edit.php'); ?>">Create your first article</a>.</p>
                     </div>
                     <?php else: ?>
                     <div class="table-responsive">
@@ -163,8 +163,8 @@ include '../includes/admin-header.php';
                                     <td><?php echo $article['category_name'] ?: 'Uncategorized'; ?></td>
                                     <td><?php echo formatDate($article['published_at'] ?: $article['created_at']); ?></td>
                                     <td>
-                                        <a href="/admin/article-edit.php?id=<?php echo $article['id']; ?>" class="btn btn-sm btn-outline-primary">Edit</a>
-                                        <a href="/article.php?slug=<?php echo $article['slug']; ?>" class="btn btn-sm btn-outline-secondary" target="_blank">View</a>
+                                        <a href="<?php echo adminUrl('article-edit.php?id=' . $article['id']); ?>" class="btn btn-sm btn-outline-primary">Edit</a>
+                                        <a href="<?php echo url('article.php?slug=' . $article['slug']); ?>" class="btn btn-sm btn-outline-secondary" target="_blank">View</a>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>

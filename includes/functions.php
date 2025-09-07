@@ -175,7 +175,7 @@ function isLoggedIn() {
 
 function requireAuth() {
     if (!isLoggedIn()) {
-        header('Location: /admin/login.php');
+        header('Location: ' . adminUrl('login.php'));
         exit;
     }
 }

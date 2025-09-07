@@ -1,5 +1,6 @@
 <?php
 // Redirect to dashboard
-header('Location: /admin/dashboard.php');
+require_once '../config/config.php';
+header('Location: ' . adminUrl('dashboard.php'));
 exit;
 ?>

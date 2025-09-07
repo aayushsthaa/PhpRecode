@@ -67,7 +67,7 @@ function autoInstall() {
         file_put_contents('config/installed.lock', date('Y-m-d H:i:s'));
         
         // Redirect to main site
-        header('Location: index.php');
+        header('Location: ' . url('index.php'));
         exit;
         
     } catch (Exception $e) {

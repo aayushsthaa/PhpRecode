@@ -33,9 +33,9 @@ include 'includes/header.php';
                         <div class="col-lg-8">
                             <div class="featured-article">
                                 <?php if ($article['featured_image']): ?>
-                                <img src="/<?php echo $article['featured_image']; ?>" class="img-fluid rounded mb-3" alt="<?php echo htmlspecialchars($article['title']); ?>">
+                                <img src="<?php echo asset($article['featured_image']); ?>" class="img-fluid rounded mb-3" alt="<?php echo htmlspecialchars($article['title']); ?>">
                                 <?php endif; ?>
-                                <h3><a href="/article.php?slug=<?php echo $article['slug']; ?>" class="text-decoration-none text-dark"><?php echo $article['title']; ?></a></h3>
+                                <h3><a href="<?php echo url('article.php?slug=' . $article['slug']); ?>" class="text-decoration-none text-dark"><?php echo $article['title']; ?></a></h3>
                                 <p class="text-muted mb-2">
                                     <small>By <?php echo $article['author_name']; ?> • <?php echo formatDate($article['published_at']); ?></small>
                                 </p>
@@ -49,13 +49,13 @@ include 'includes/header.php';
                                 <div class="row">
                                     <?php if ($article['featured_image']): ?>
                                     <div class="col-4">
-                                        <img src="/<?php echo $article['featured_image']; ?>" class="img-fluid rounded" alt="<?php echo htmlspecialchars($article['title']); ?>">
+                                        <img src="<?php echo asset($article['featured_image']); ?>" class="img-fluid rounded" alt="<?php echo htmlspecialchars($article['title']); ?>">
                                     </div>
                                     <div class="col-8">
                                     <?php else: ?>
                                     <div class="col-12">
                                     <?php endif; ?>
-                                        <h6><a href="/article.php?slug=<?php echo $article['slug']; ?>" class="text-decoration-none text-dark"><?php echo $article['title']; ?></a></h6>
+                                        <h6><a href="<?php echo url('article.php?slug=' . $article['slug']); ?>" class="text-decoration-none text-dark"><?php echo $article['title']; ?></a></h6>
                                         <p class="text-muted mb-0">
                                             <small><?php echo formatDate($article['published_at']); ?></small>
                                         </p>
@@ -74,11 +74,11 @@ include 'includes/header.php';
                         <div class="col-lg-4 col-md-6 mb-4">
                             <div class="card h-100 border-0 shadow-sm">
                                 <?php if ($article['featured_image']): ?>
-                                <img src="/<?php echo $article['featured_image']; ?>" class="card-img-top" alt="<?php echo htmlspecialchars($article['title']); ?>">
+                                <img src="<?php echo asset($article['featured_image']); ?>" class="card-img-top" alt="<?php echo htmlspecialchars($article['title']); ?>">
                                 <?php endif; ?>
                                 <div class="card-body">
                                     <h5 class="card-title">
-                                        <a href="/article.php?slug=<?php echo $article['slug']; ?>" class="text-decoration-none text-dark"><?php echo $article['title']; ?></a>
+                                        <a href="<?php echo url('article.php?slug=' . $article['slug']); ?>" class="text-decoration-none text-dark"><?php echo $article['title']; ?></a>
                                     </h5>
                                     <p class="card-text text-muted"><?php echo truncateText($article['excerpt'] ?: strip_tags($article['content']), 120); ?></p>
                                     <div class="d-flex justify-content-between align-items-center">
@@ -99,13 +99,13 @@ include 'includes/header.php';
                             <div class="row border-bottom pb-3">
                                 <?php if ($article['featured_image']): ?>
                                 <div class="col-md-3">
-                                    <img src="/<?php echo $article['featured_image']; ?>" class="img-fluid rounded" alt="<?php echo htmlspecialchars($article['title']); ?>">
+                                    <img src="<?php echo asset($article['featured_image']); ?>" class="img-fluid rounded" alt="<?php echo htmlspecialchars($article['title']); ?>">
                                 </div>
                                 <div class="col-md-9">
                                 <?php else: ?>
                                 <div class="col-12">
                                 <?php endif; ?>
-                                    <h5><a href="/article.php?slug=<?php echo $article['slug']; ?>" class="text-decoration-none text-dark"><?php echo $article['title']; ?></a></h5>
+                                    <h5><a href="<?php echo url('article.php?slug=' . $article['slug']); ?>" class="text-decoration-none text-dark"><?php echo $article['title']; ?></a></h5>
                                     <p class="text-muted mb-2">
                                         <small>By <?php echo $article['author_name']; ?> • <?php echo formatDate($article['published_at']); ?></small>
                                     </p>

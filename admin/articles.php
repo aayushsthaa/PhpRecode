@@ -97,7 +97,7 @@ include '../includes/admin-header.php';
     <div class="card shadow mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h6 class="m-0 font-weight-bold text-primary">Articles Filter & Actions</h6>
-            <a href="/admin/article-edit.php" class="btn btn-primary">
+            <a href="<?php echo adminUrl('article-edit.php'); ?>" class="btn btn-primary">
                 <i class="fas fa-plus me-1"></i>New Article
             </a>
         </div>
@@ -150,9 +150,9 @@ include '../includes/admin-header.php';
                 <h5 class="text-muted">No articles found</h5>
                 <p class="text-muted">
                     <?php if ($search || $status || $category): ?>
-                    Try adjusting your filters or <a href="/admin/articles.php">view all articles</a>.
+                    Try adjusting your filters or <a href="<?php echo adminUrl('articles.php'); ?>">view all articles</a>.
                     <?php else: ?>
-                    Get started by <a href="/admin/article-edit.php">creating your first article</a>.
+                    Get started by <a href="<?php echo adminUrl('article-edit.php'); ?>">creating your first article</a>.
                     <?php endif; ?>
                 </p>
             </div>
@@ -210,11 +210,11 @@ include '../includes/admin-header.php';
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="/admin/article-edit.php?id=<?php echo $article['id']; ?>" class="btn btn-outline-primary" title="Edit">
+                                        <a href="<?php echo adminUrl('article-edit.php?id=' . $article['id']); ?>" class="btn btn-outline-primary" title="Edit">
                                             <i class="fas fa-edit"></i>
                                         </a>
                                         <?php if ($article['status'] === 'published'): ?>
-                                        <a href="/article.php?slug=<?php echo $article['slug']; ?>" class="btn btn-outline-secondary" target="_blank" title="View">
+                                        <a href="<?php echo url('article.php?slug=' . $article['slug']); ?>" class="btn btn-outline-secondary" target="_blank" title="View">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                         <?php endif; ?>

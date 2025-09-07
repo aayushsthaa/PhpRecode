@@ -12,7 +12,7 @@ if ($isEdit) {
     $article = $stmt->fetch();
     
     if (!$article) {
-        header('Location: /admin/articles.php?error=Article not found');
+        header('Location: ' . adminUrl('articles.php?error=Article not found'));
         exit;
     }
 }

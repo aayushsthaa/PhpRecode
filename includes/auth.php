@@ -20,7 +20,7 @@ function login($username, $password) {
 
 function logout() {
     session_destroy();
-    header('Location: /admin/login.php');
+    header('Location: ' . adminUrl('login.php'));
     exit;
 }
 

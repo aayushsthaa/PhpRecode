@@ -115,7 +115,7 @@ include '../includes/admin-header.php';
                                     <td><?php echo $category['parent_name'] ? htmlspecialchars($category['parent_name']) : '—'; ?></td>
                                     <td>
                                         <?php if ($category['article_count'] > 0): ?>
-                                        <a href="/admin/articles.php?category=<?php echo $category['id']; ?>" class="text-decoration-none">
+                                        <a href="<?php echo adminUrl('articles.php?category=' . $category['id']); ?>" class="text-decoration-none">
                                             <?php echo $category['article_count']; ?>
                                         </a>
                                         <?php else: ?>
@@ -128,7 +128,7 @@ include '../includes/admin-header.php';
                                             <button class="btn btn-outline-primary" onclick="editCategory(<?php echo htmlspecialchars(json_encode($category)); ?>)">
                                                 <i class="fas fa-edit"></i>
                                             </button>
-                                            <a href="/category.php?slug=<?php echo $category['slug']; ?>" class="btn btn-outline-secondary" target="_blank">
+                                            <a href="<?php echo url('category.php?slug=' . $category['slug']); ?>" class="btn btn-outline-secondary" target="_blank">
                                                 <i class="fas fa-eye"></i>
                                             </a>
                                             <a href="?delete=<?php echo $category['id']; ?>" class="btn btn-outline-danger" 

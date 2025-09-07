@@ -7,28 +7,28 @@
         
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" href="/admin/dashboard.php">
+                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>" href="<?php echo adminUrl('dashboard.php'); ?>">
                     <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'articles.php' ? 'active' : ''; ?>" href="/admin/articles.php">
+                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'articles.php' ? 'active' : ''; ?>" href="<?php echo adminUrl('articles.php'); ?>">
                     <i class="fas fa-newspaper me-2"></i>Articles
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'layouts.php' ? 'active' : ''; ?>" href="/admin/layouts.php">
+                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'layouts.php' ? 'active' : ''; ?>" href="<?php echo adminUrl('layouts.php'); ?>">
                     <i class="fas fa-th-large me-2"></i>Layout Management
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'categories.php' ? 'active' : ''; ?>" href="/admin/categories.php">
+                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'categories.php' ? 'active' : ''; ?>" href="<?php echo adminUrl('categories.php'); ?>">
                     <i class="fas fa-tags me-2"></i>Categories
                 </a>
             </li>
             <?php if (hasPermission('admin')): ?>
             <li class="nav-item">
-                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="/admin/users.php">
+                <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'users.php' ? 'active' : ''; ?>" href="<?php echo adminUrl('users.php'); ?>">
                     <i class="fas fa-users me-2"></i>Users
                 </a>
             </li>
@@ -41,12 +41,12 @@
                 <div class="collapse" id="mediaSubmenu">
                     <ul class="nav flex-column ms-3">
                         <li class="nav-item">
-                            <a class="nav-link text-muted" href="/admin/media.php">
+                            <a class="nav-link text-muted" href="<?php echo adminUrl('media.php'); ?>">
                                 <i class="fas fa-folder me-2"></i>Media Library
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-muted" href="/admin/upload.php">
+                            <a class="nav-link text-muted" href="<?php echo adminUrl('upload.php'); ?>">
                                 <i class="fas fa-upload me-2"></i>Upload Files
                             </a>
                         </li>
@@ -61,17 +61,17 @@
                 <div class="collapse" id="appearanceSubmenu">
                     <ul class="nav flex-column ms-3">
                         <li class="nav-item">
-                            <a class="nav-link text-muted" href="/admin/homepage.php">
+                            <a class="nav-link text-muted" href="<?php echo adminUrl('homepage.php'); ?>">
                                 <i class="fas fa-home me-2"></i>Homepage
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-muted" href="/admin/sidebar.php">
+                            <a class="nav-link text-muted" href="<?php echo adminUrl('sidebar.php'); ?>">
                                 <i class="fas fa-columns me-2"></i>Sidebar
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-muted" href="/admin/menus.php">
+                            <a class="nav-link text-muted" href="<?php echo adminUrl('menus.php'); ?>">
                                 <i class="fas fa-bars me-2"></i>Menus
                             </a>
                         </li>
