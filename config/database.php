@@ -130,6 +130,26 @@ function createTables($pdo) {
     foreach ($tables as $table) {
         $pdo->exec($table);
     }
+    
+    // Add foreign key constraints after all tables are created
+    $constraints = [
+        "ALTER TABLE categories ADD CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL",
+        "ALTER TABLE articles ADD CONSTRAINT fk_articles_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE",
+        "ALTER TABLE articles ADD CONSTRAINT fk_articles_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL",
+        "ALTER TABLE article_tags ADD CONSTRAINT fk_article_tags_article FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE",
+        "ALTER TABLE article_tags ADD CONSTRAINT fk_article_tags_tag FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE",
+        "ALTER TABLE section_articles ADD CONSTRAINT fk_section_articles_section FOREIGN KEY (section_id) REFERENCES homepage_sections(id) ON DELETE CASCADE",
+        "ALTER TABLE section_articles ADD CONSTRAINT fk_section_articles_article FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE",
+        "ALTER TABLE media ADD CONSTRAINT fk_media_uploader FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL"
+    ];
+    
+    foreach ($constraints as $constraint) {
+        try {
+            $pdo->exec($constraint);
+        } catch (PDOException $e) {
+            // Ignore if constraint already exists
+        }
+    }
 }
 
 // Initialize default data

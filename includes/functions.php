@@ -70,7 +70,7 @@ function getSetting($key, $default = '') {
 
 function setSetting($key, $value, $type = 'text') {
     global $pdo;
-    $stmt = $pdo->prepare("INSERT INTO site_settings (setting_key, setting_value, setting_type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = ?, updated_at = NOW()");
+    $stmt = $pdo->prepare("INSERT INTO site_settings (setting_key, setting_value, setting_type) VALUES (?, ?, ?) ON CONFLICT (setting_key) DO UPDATE SET setting_value = ?, updated_at = NOW()");
     $stmt->execute([$key, $value, $type, $value]);
 }
 
@@ -116,7 +116,7 @@ function getCategories() {
 
 function getHomepageSections() {
     global $pdo;
-    $stmt = $pdo->query("SELECT * FROM homepage_sections WHERE is_active = 1 ORDER BY sort_order");
+    $stmt = $pdo->query("SELECT * FROM homepage_sections WHERE is_active = TRUE ORDER BY sort_order");
     return $stmt->fetchAll();
 }
 
@@ -142,7 +142,7 @@ function getSectionArticles($sectionId, $limit = null) {
 
 function getSidebarWidgets() {
     global $pdo;
-    $stmt = $pdo->query("SELECT * FROM sidebar_widgets WHERE is_active = 1 ORDER BY position");
+    $stmt = $pdo->query("SELECT * FROM sidebar_widgets WHERE is_active = TRUE ORDER BY position");
     return $stmt->fetchAll();
 }
 
