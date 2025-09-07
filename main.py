@@ -4300,6 +4300,25 @@ def categories_management():
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
     
+    # Get all categories from database
+    conn = get_db()
+    categories = []
+    
+    if conn:
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cur.execute("""SELECT c.*, COUNT(a.id) as article_count, pc.name as parent_name
+                          FROM categories c 
+                          LEFT JOIN articles a ON c.id = a.category_id 
+                          LEFT JOIN categories pc ON c.parent_id = pc.id
+                          GROUP BY c.id, pc.name 
+                          ORDER BY c.sort_order, c.name""")
+            categories = cur.fetchall()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error fetching categories: {e}")
+    
     return render_template_string("""
 <!DOCTYPE html>
 <html lang="en">
@@ -4344,18 +4363,80 @@ def categories_management():
     </nav>
 
     <div class="main-content">
-        <h1><i class="fas fa-folder me-3"></i>Categories Management</h1>
-        <p class="lead">Organize articles into categories</p>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1><i class="fas fa-folder me-3"></i>Categories Management</h1>
+                <p class="lead">Organize articles into categories</p>
+            </div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                <i class="fas fa-plus me-2"></i>Add New Category
+            </button>
+        </div>
         
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>Category management system is under development. This will allow you to create and manage article categories.
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Slug</th>
+                                <th>Description</th>
+                                <th>Parent</th>
+                                <th>Articles</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in categories %}
+                            <tr>
+                                <td><strong>{{ category.name }}</strong></td>
+                                <td><code>{{ category.slug }}</code></td>
+                                <td>{{ category.description or 'No description' }}</td>
+                                <td>{{ category.parent_name or 'Main Category' }}</td>
+                                <td><span class="badge bg-secondary">{{ category.article_count }}</span></td>
+                                <td>
+                                    {% if category.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ category.created_at.strftime('%Y-%m-%d') if category.created_at else 'N/A' }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editCategory({{ category.id }})">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory({{ category.id }})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function editCategory(categoryId) {
+            alert('Category editing functionality will be implemented');
+        }
+        
+        function deleteCategory(categoryId) {
+            if (confirm('Are you sure you want to delete this category?')) {
+                alert('Category deletion functionality will be implemented');
+            }
+        }
+    </script>
 </body>
 </html>
-    """)
+    """, categories=categories)
 
 @app.route('/admin/settings')
 def site_settings():
