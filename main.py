@@ -2930,7 +2930,6 @@ def add_article():
     <title>Create New Article - Echhapa CMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
     <style>
         :root {
             --sidebar-width: 280px;
@@ -2960,6 +2959,85 @@ def add_article():
         .seo-title { color: #1a0dab; font-size: 1.125rem; text-decoration: none; }
         .seo-url { color: #006621; font-size: 0.875rem; }
         .seo-description { color: #545454; font-size: 0.875rem; }
+        
+        /* Custom Rich Text Editor Styles */
+        .custom-editor {
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            min-height: 400px;
+            background: white;
+        }
+        .editor-toolbar {
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 0.75rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            border-radius: 0.5rem 0.5rem 0 0;
+        }
+        .editor-btn {
+            background: none;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 0.375rem 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+        .editor-btn:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+        }
+        .editor-btn.active {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: white;
+        }
+        .editor-content {
+            padding: 1rem;
+            min-height: 300px;
+            outline: none;
+            line-height: 1.6;
+        }
+        .editor-content:focus {
+            box-shadow: none;
+        }
+        .editor-separator {
+            width: 1px;
+            background: #dee2e6;
+            margin: 0 0.5rem;
+        }
+        .paragraph-block {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border: 1px solid transparent;
+            border-radius: 0.25rem;
+            position: relative;
+        }
+        .paragraph-block:hover {
+            border-color: #dee2e6;
+            background: #f8f9fa;
+        }
+        .paragraph-controls {
+            position: absolute;
+            right: 0.5rem;
+            top: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .paragraph-block:hover .paragraph-controls {
+            opacity: 1;
+        }
+        .block-btn {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            margin-left: 0.25rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
     </style>
 </head>
 <body>
@@ -3026,7 +3104,27 @@ def add_article():
 
                                 <div class="mb-3">
                                     <label class="form-label">Article Content <span class="text-danger">*</span></label>
-                                    <textarea id="articleContent" name="content" placeholder="Write your article content here..."></textarea>
+                                    <div class="custom-editor" id="customEditor">
+                                        <div class="editor-toolbar">
+                                            <button type="button" class="editor-btn" onclick="formatText('bold')"><i class="fas fa-bold"></i></button>
+                                            <button type="button" class="editor-btn" onclick="formatText('italic')"><i class="fas fa-italic"></i></button>
+                                            <button type="button" class="editor-btn" onclick="formatText('underline')"><i class="fas fa-underline"></i></button>
+                                            <div class="editor-separator"></div>
+                                            <button type="button" class="editor-btn" onclick="formatText('insertUnorderedList')"><i class="fas fa-list-ul"></i></button>
+                                            <button type="button" class="editor-btn" onclick="formatText('insertOrderedList')"><i class="fas fa-list-ol"></i></button>
+                                            <div class="editor-separator"></div>
+                                            <button type="button" class="editor-btn" onclick="insertHeading('h2')">H2</button>
+                                            <button type="button" class="editor-btn" onclick="insertHeading('h3')">H3</button>
+                                            <button type="button" class="editor-btn" onclick="insertHeading('h4')">H4</button>
+                                            <div class="editor-separator"></div>
+                                            <button type="button" class="editor-btn" onclick="insertLink()"><i class="fas fa-link"></i></button>
+                                            <button type="button" class="editor-btn" onclick="insertQuote()"><i class="fas fa-quote-left"></i></button>
+                                            <div class="editor-separator"></div>
+                                            <button type="button" class="editor-btn" onclick="addParagraph()"><i class="fas fa-paragraph"></i> Add Paragraph</button>
+                                            <button type="button" class="editor-btn" onclick="addImageBlock()"><i class="fas fa-image"></i> Add Image</button>
+                                        </div>
+                                        <div class="editor-content" id="editorContent" contenteditable="true" placeholder="Write your article content here..."></div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -3670,184 +3768,376 @@ def layout_management():
                 {% endfor %}
             </div>
         </div>
-            
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Layout Settings</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label">Articles per Category</label>
-                            <select class="form-control" id="articlesPerCategory">
-                                <option value="3">3 Articles</option>
-                                <option value="4" selected>4 Articles</option>
-                                <option value="5">5 Articles</option>
-                                <option value="6">6 Articles</option>
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Featured Articles Count</label>
-                            <select class="form-control" id="featuredCount">
-                                <option value="1">1 Featured Article</option>
-                                <option value="2">2 Featured Articles</option>
-                                <option value="3" selected>3 Featured Articles</option>
-                                <option value="4">4 Featured Articles</option>
-                            </select>
-                        </div>
+    </div>
 
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="showSidebar" checked>
-                                <label class="form-check-label" for="showSidebar">
-                                    Show Sidebar
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="showBreadcrumb" checked>
-                                <label class="form-check-label" for="showBreadcrumb">
-                                    Show Breadcrumb Navigation
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Homepage Sections</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="showBreakingNews" checked>
-                                <label class="form-check-label" for="showBreakingNews">
-                                    Breaking News Ticker
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="showWeather">
-                                <label class="form-check-label" for="showWeather">
-                                    Weather Widget
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="showSocialMedia" checked>
-                                <label class="form-check-label" for="showSocialMedia">
-                                    Social Media Links
-                                </label>
-                            </div>
-                        </div>
+    
+    <!-- Layout Selection Modal -->
+    <div class="modal fade" id="layoutSelectorModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Choose Layout Template</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="layout-grid" id="modalLayoutTemplates">
+                        <!-- Layout templates will be populated here -->
                     </div>
                 </div>
-
-                <div class="card mt-3">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-eye me-2"></i>Layout Preview</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Changes will be applied to your live website when you save. 
-                            <a href="/" target="_blank" class="alert-link">Preview current homepage</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Subcategory Modal -->
+    <div class="modal fade" id="subcategoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Subcategory</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="subcategoryForm">
+                        <input type="hidden" id="parentCategoryId">
+                        <div class="mb-3">
+                            <label class="form-label">Subcategory Name</label>
+                            <input type="text" class="form-control" id="subcategoryName" required>
                         </div>
-                        <button class="btn btn-outline-primary w-100" onclick="previewLayout()">
-                            <i class="fas fa-external-link-alt me-2"></i>Preview in New Tab
-                        </button>
-                    </div>
+                        <div class="mb-3">
+                            <label class="form-label">Slug</label>
+                            <input type="text" class="form-control" id="subcategorySlug" readonly>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSubcategory()">Save Subcategory</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>
-        let currentLayout = '{{ current_layout }}';
+        let currentCategoryId = null;
+        let layoutModal = null;
+        let subcategoryModal = null;
         
-        // Initialize sortable list
-        const categoryList = document.getElementById('categoryList');
-        const sortable = Sortable.create(categoryList, {
-            handle: '.drag-handle',
-            animation: 150,
-            ghostClass: 'opacity-50'
+        document.addEventListener('DOMContentLoaded', function() {
+            layoutModal = new bootstrap.Modal(document.getElementById('layoutSelectorModal'));
+            subcategoryModal = new bootstrap.Modal(document.getElementById('subcategoryModal'));
+            
+            // Auto-generate slug when subcategory name changes
+            document.getElementById('subcategoryName').addEventListener('input', function() {
+                const name = this.value;
+                const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                document.getElementById('subcategorySlug').value = slug;
+            });
         });
 
-        function selectLayout(layoutType) {
-            currentLayout = layoutType;
+        function openLayoutSelector(categoryId) {
+            currentCategoryId = categoryId;
             
-            // Update visual selection
-            document.querySelectorAll('.layout-preview').forEach(el => {
-                el.classList.remove('active');
-            });
-            event.target.closest('.layout-preview').classList.add('active');
+            // Populate modal with layout templates
+            const modalTemplates = document.getElementById('modalLayoutTemplates');
+            const originalTemplates = document.getElementById('layoutTemplates');
+            modalTemplates.innerHTML = originalTemplates.innerHTML;
             
-            // Update header text
-            const headers = document.querySelectorAll('.layout-preview-header');
-            headers.forEach(header => {
-                header.textContent = header.textContent.replace(' (Current)', '');
+            // Add click handlers to modal templates
+            modalTemplates.querySelectorAll('.layout-template').forEach(template => {
+                template.onclick = function() {
+                    selectLayoutForCategory(categoryId, this.dataset.layout);
+                    layoutModal.hide();
+                };
             });
-            event.target.querySelector('.layout-preview-header').textContent += ' (Current)';
+            
+            layoutModal.show();
         }
-
-        function saveLayout() {
-            // Get category order
-            const categoryOrder = Array.from(categoryList.children).map(item => ({
-                id: item.dataset.id,
-                visible: item.querySelector('input[type="checkbox"]').checked
-            }));
-
-            const layoutData = {
-                layout_type: currentLayout,
-                categories: categoryOrder,
-                settings: {
-                    articles_per_category: document.getElementById('articlesPerCategory').value,
-                    featured_count: document.getElementById('featuredCount').value,
-                    show_sidebar: document.getElementById('showSidebar').checked,
-                    show_breadcrumb: document.getElementById('showBreadcrumb').checked,
-                    show_breaking_news: document.getElementById('showBreakingNews').checked,
-                    show_weather: document.getElementById('showWeather').checked,
-                    show_social_media: document.getElementById('showSocialMedia').checked
-                }
+        
+        function selectLayoutForCategory(categoryId, layoutType) {
+            // Update the category's current layout display
+            const categorySection = document.querySelector(`[data-category-id="${categoryId}"]`);
+            const currentLayoutDiv = categorySection.querySelector('.current-layout .layout-template');
+            
+            // Update layout preview
+            currentLayoutDiv.dataset.layout = layoutType;
+            currentLayoutDiv.querySelector('.layout-header').textContent = getLayoutName(layoutType);
+            
+            // Update layout preview content based on type
+            updateLayoutPreview(currentLayoutDiv.querySelector('.layout-preview'), layoutType);
+        }
+        
+        function getLayoutName(layoutType) {
+            const names = {
+                'featured-main-list': 'Featured + List View',
+                'three-cards': 'Three Cards Row',
+                'two-main-sidebar': 'Two Main + Sidebar',
+                'grid-layout': 'Grid Layout',
+                'list-only': 'List Only',
+                'magazine-style': 'Magazine Style'
             };
-
-            // Save to server
-            fetch('/admin/layout/save', {
+            return names[layoutType] || layoutType;
+        }
+        
+        function updateLayoutPreview(previewDiv, layoutType) {
+            previewDiv.innerHTML = '';
+            
+            switch(layoutType) {
+                case 'featured-main-list':
+                    previewDiv.innerHTML = `
+                        <div class="main-item layout-item"></div>
+                        <div class="list-item layout-item"></div>
+                        <div class="list-item layout-item"></div>
+                        <div class="list-item layout-item"></div>
+                        <div class="list-item layout-item"></div>
+                    `;
+                    break;
+                case 'three-cards':
+                    previewDiv.innerHTML = `
+                        <div class="d-flex gap-1">
+                            <div class="card-item layout-item flex-fill"></div>
+                            <div class="card-item layout-item flex-fill"></div>
+                            <div class="card-item layout-item flex-fill"></div>
+                        </div>
+                        <div class="text-item layout-item"></div>
+                        <div class="text-item layout-item"></div>
+                    `;
+                    break;
+                case 'two-main-sidebar':
+                    previewDiv.innerHTML = `
+                        <div class="d-flex gap-1">
+                            <div style="flex: 2;">
+                                <div class="main-item layout-item"></div>
+                                <div class="main-item layout-item"></div>
+                            </div>
+                            <div style="flex: 1;">
+                                <div class="list-item layout-item"></div>
+                                <div class="list-item layout-item"></div>
+                                <div class="list-item layout-item"></div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                case 'grid-layout':
+                    previewDiv.innerHTML = `
+                        <div class="d-flex gap-1 mb-1">
+                            <div class="card-item layout-item flex-fill"></div>
+                            <div class="card-item layout-item flex-fill"></div>
+                        </div>
+                        <div class="d-flex gap-1">
+                            <div class="card-item layout-item flex-fill"></div>
+                            <div class="card-item layout-item flex-fill"></div>
+                        </div>
+                    `;
+                    break;
+                case 'list-only':
+                    previewDiv.innerHTML = `
+                        <div class="list-item layout-item"></div>
+                        <div class="list-item layout-item"></div>
+                        <div class="list-item layout-item"></div>
+                        <div class="list-item layout-item"></div>
+                        <div class="list-item layout-item"></div>
+                        <div class="list-item layout-item"></div>
+                    `;
+                    break;
+                case 'magazine-style':
+                    previewDiv.innerHTML = `
+                        <div class="main-item layout-item"></div>
+                        <div class="d-flex gap-1">
+                            <div class="card-item layout-item flex-fill"></div>
+                            <div class="card-item layout-item flex-fill"></div>
+                            <div class="card-item layout-item flex-fill"></div>
+                        </div>
+                    `;
+                    break;
+            }
+        }
+        
+        function toggleCategory(categoryId) {
+            // Toggle category visibility
+            alert('Category visibility toggled!');
+        }
+        
+        function addSubcategory(categoryId) {
+            document.getElementById('parentCategoryId').value = categoryId;
+            document.getElementById('subcategoryName').value = '';
+            document.getElementById('subcategorySlug').value = '';
+            subcategoryModal.show();
+        }
+        
+        function saveSubcategory() {
+            const parentId = document.getElementById('parentCategoryId').value;
+            const name = document.getElementById('subcategoryName').value;
+            const slug = document.getElementById('subcategorySlug').value;
+            
+            if (!name.trim()) {
+                alert('Please enter a subcategory name');
+                return;
+            }
+            
+            // Here you would send the data to your backend
+            fetch('/admin/categories/subcategory', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(layoutData)
+                body: JSON.stringify({ parent_id: parentId, name: name, slug: slug })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Layout saved successfully! Changes will appear on your homepage.');
+                    subcategoryModal.hide();
+                    alert('Subcategory created successfully!');
+                    location.reload(); // Refresh to show new subcategory
                 } else {
-                    alert('Error saving layout: ' + data.error);
+                    alert('Error creating subcategory: ' + data.error);
                 }
             })
             .catch(error => {
-                alert('Error saving layout: ' + error);
+                alert('Error: ' + error);
+            });
+        }
+        
+        function editSubcategory(subcategoryId) {
+            alert('Edit subcategory: ' + subcategoryId);
+        }
+        
+        function deleteSubcategory(subcategoryId) {
+            if (confirm('Are you sure you want to delete this subcategory?')) {
+                // Send delete request to backend
+                fetch(`/admin/categories/subcategory/${subcategoryId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Subcategory deleted successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error deleting subcategory: ' + data.error);
+                    }
+                });
+            }
+        }
+        
+        function saveAllLayouts() {
+            // Collect all category layout settings
+            const layouts = [];
+            
+            document.querySelectorAll('.category-section').forEach(section => {
+                const categoryId = section.dataset.categoryId;
+                const layoutType = section.querySelector('.current-layout .layout-template').dataset.layout;
+                const articlesCount = section.querySelector('[data-setting="articles-count"]').value;
+                const showImages = section.querySelector(`#showImages${categoryId}`).checked;
+                const showExcerpts = section.querySelector(`#showExcerpts${categoryId}`).checked;
+                
+                layouts.push({
+                    category_id: categoryId,
+                    layout_type: layoutType,
+                    articles_count: articlesCount,
+                    show_images: showImages,
+                    show_excerpts: showExcerpts
+                });
+            });
+            
+            // Save to backend
+            fetch('/admin/layout/save-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ layouts: layouts })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('All layouts saved successfully!');
+                } else {
+                    alert('Error saving layouts: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
             });
         }
 
-        function previewLayout() {
-            window.open('/', '_blank');
-        }
     </script>
 </body>
 </html>
     """, categories=categories, current_layout=current_layout)
 
-@app.route('/admin/layout/save', methods=['POST'])
-def save_layout():
-    """Save layout settings"""
+@app.route('/admin/layout/save-all', methods=['POST'])
+def save_all_layouts():
+    """Save all category layout settings"""
     if 'user_id' not in session:
         return jsonify({'success': False, 'error': 'Not authenticated'})
     
     try:
         layout_data = request.get_json()
+        layouts = layout_data.get('layouts', [])
         
-        # Here you would save the layout settings to database
-        # For now, return success
-        return jsonify({'success': True, 'message': 'Layout saved successfully'})
+        conn = get_db()
+        if conn:
+            cur = conn.cursor()
+            for layout in layouts:
+                cur.execute("""
+                    UPDATE categories 
+                    SET layout_type = %s, articles_count = %s, show_images = %s, show_excerpts = %s 
+                    WHERE id = %s
+                """, (
+                    layout['layout_type'],
+                    layout['articles_count'],
+                    layout['show_images'],
+                    layout['show_excerpts'],
+                    layout['category_id']
+                ))
+            conn.commit()
+            cur.close()
+            conn.close()
+        
+        return jsonify({'success': True, 'message': 'All layouts saved successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/categories/subcategory', methods=['POST'])
+def create_subcategory():
+    """Create a new subcategory"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'})
+    
+    try:
+        data = request.get_json()
+        parent_id = data.get('parent_id')
+        name = data.get('name')
+        slug = data.get('slug')
+        
+        conn = get_db()
+        if conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO categories (name, slug, parent_id, is_active, sort_order)
+                VALUES (%s, %s, %s, TRUE, 0)
+            """, (name, slug, parent_id))
+            conn.commit()
+            cur.close()
+            conn.close()
+        
+        return jsonify({'success': True, 'message': 'Subcategory created successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/categories/subcategory/<int:subcategory_id>', methods=['DELETE'])
+def delete_subcategory(subcategory_id):
+    """Delete a subcategory"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'})
+    
+    try:
+        conn = get_db()
+        if conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM categories WHERE id = %s", (subcategory_id,))
+            conn.commit()
+            cur.close()
+            conn.close()
+        
+        return jsonify({'success': True, 'message': 'Subcategory deleted successfully'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
