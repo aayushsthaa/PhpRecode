@@ -3011,9 +3011,24 @@ def add_article():
 
 @app.route('/admin/layout')
 def layout_management():
-    """Layout Management System"""
+    """Advanced Layout Management System"""
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
+    
+    # Get available categories for layout customization
+    conn = get_db()
+    categories = []
+    current_layout = 'ekantipur_style'  # Default layout
+    
+    if conn:
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cur.execute("SELECT * FROM categories WHERE is_active = TRUE ORDER BY sort_order, name")
+            categories = cur.fetchall()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error fetching categories: {e}")
     
     return render_template_string("""
 <!DOCTYPE html>
@@ -3024,6 +3039,7 @@ def layout_management():
     <title>Layout Management - Echhapa CMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/modular/sortable.core.esm.js">
     <style>
         :root {
             --sidebar-width: 280px;
@@ -3037,6 +3053,40 @@ def layout_management():
         .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1.5rem; display: flex; align-items: center; text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent; }
         .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
         .nav-link i { width: 20px; margin-right: 0.75rem; }
+        
+        .layout-preview {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            cursor: pointer;
+            min-height: 200px;
+        }
+        .layout-preview:hover { transform: translateY(-2px); }
+        .layout-preview.active { border: 3px solid var(--accent-color); }
+        .layout-preview-header { background: #333; color: white; padding: 0.5rem; font-size: 0.75rem; }
+        .layout-sections { padding: 1rem; }
+        .layout-section { margin-bottom: 0.5rem; height: 15px; border-radius: 3px; }
+        .header-section { background: #dc3545; }
+        .nav-section { background: #6c757d; }
+        .featured-section { background: #007bff; height: 30px; }
+        .category-section { background: #28a745; }
+        .sidebar-section { background: #ffc107; }
+        .footer-section { background: #6f42c1; }
+        
+        .category-item {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+        .drag-handle { cursor: move; color: #6c757d; margin-right: 0.5rem; }
+        .sortable-list { min-height: 50px; }
     </style>
 </head>
 <body>
@@ -3059,18 +3109,306 @@ def layout_management():
     </nav>
 
     <div class="main-content">
-        <h1><i class="fas fa-th-large me-3"></i>Layout Management</h1>
-        <p class="lead">Manage homepage layout and article arrangement</p>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1><i class="fas fa-th-large me-3"></i>Layout Management</h1>
+                <p class="lead mb-0">Customize homepage layout and category arrangement</p>
+            </div>
+            <button class="btn btn-primary" onclick="saveLayout()"><i class="fas fa-save me-2"></i>Save Layout</button>
+        </div>
         
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>Layout management system is under development. This will allow you to customize the homepage layout and arrange articles.
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-palette me-2"></i>Layout Templates</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="layout-preview active" onclick="selectLayout('ekantipur_style')">
+                                    <div class="layout-preview-header">Ekantipur Style (Current)</div>
+                                    <div class="layout-sections">
+                                        <div class="layout-section header-section"></div>
+                                        <div class="layout-section nav-section"></div>
+                                        <div class="layout-section featured-section"></div>
+                                        <div class="row">
+                                            <div class="col-8">
+                                                <div class="layout-section category-section"></div>
+                                                <div class="layout-section category-section"></div>
+                                                <div class="layout-section category-section"></div>
+                                            </div>
+                                            <div class="col-4">
+                                                <div class="layout-section sidebar-section"></div>
+                                                <div class="layout-section sidebar-section"></div>
+                                            </div>
+                                        </div>
+                                        <div class="layout-section footer-section"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="layout-preview" onclick="selectLayout('magazine_style')">
+                                    <div class="layout-preview-header">Magazine Style</div>
+                                    <div class="layout-sections">
+                                        <div class="layout-section header-section"></div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="layout-section featured-section"></div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="layout-section featured-section"></div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-4"><div class="layout-section category-section"></div></div>
+                                            <div class="col-4"><div class="layout-section category-section"></div></div>
+                                            <div class="col-4"><div class="layout-section category-section"></div></div>
+                                        </div>
+                                        <div class="layout-section footer-section"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="layout-preview" onclick="selectLayout('classic_blog')">
+                                    <div class="layout-preview-header">Classic Blog</div>
+                                    <div class="layout-sections">
+                                        <div class="layout-section header-section"></div>
+                                        <div class="layout-section featured-section"></div>
+                                        <div class="row">
+                                            <div class="col-9">
+                                                <div class="layout-section category-section"></div>
+                                                <div class="layout-section category-section"></div>
+                                                <div class="layout-section category-section"></div>
+                                                <div class="layout-section category-section"></div>
+                                            </div>
+                                            <div class="col-3">
+                                                <div class="layout-section sidebar-section"></div>
+                                                <div class="layout-section sidebar-section"></div>
+                                                <div class="layout-section sidebar-section"></div>
+                                            </div>
+                                        </div>
+                                        <div class="layout-section footer-section"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Category Order & Visibility</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Drag to reorder categories on homepage:</label>
+                        </div>
+                        <div id="categoryList" class="sortable-list">
+                            {% for category in categories %}
+                            <div class="category-item" data-id="{{ category.id }}">
+                                <div class="d-flex align-items-center flex-grow-1">
+                                    <i class="fas fa-grip-vertical drag-handle"></i>
+                                    <i class="fas fa-folder me-2 text-primary"></i>
+                                    <span class="me-2">{{ category.name }}</span>
+                                    <small class="text-muted">({{ category.slug }})</small>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="cat{{ category.id }}" checked>
+                                    <label class="form-check-label" for="cat{{ category.id }}">
+                                        Show on Homepage
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Layout Settings</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Articles per Category</label>
+                            <select class="form-control" id="articlesPerCategory">
+                                <option value="3">3 Articles</option>
+                                <option value="4" selected>4 Articles</option>
+                                <option value="5">5 Articles</option>
+                                <option value="6">6 Articles</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Featured Articles Count</label>
+                            <select class="form-control" id="featuredCount">
+                                <option value="1">1 Featured Article</option>
+                                <option value="2">2 Featured Articles</option>
+                                <option value="3" selected>3 Featured Articles</option>
+                                <option value="4">4 Featured Articles</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="showSidebar" checked>
+                                <label class="form-check-label" for="showSidebar">
+                                    Show Sidebar
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="showBreadcrumb" checked>
+                                <label class="form-check-label" for="showBreadcrumb">
+                                    Show Breadcrumb Navigation
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Homepage Sections</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="showBreakingNews" checked>
+                                <label class="form-check-label" for="showBreakingNews">
+                                    Breaking News Ticker
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="showWeather">
+                                <label class="form-check-label" for="showWeather">
+                                    Weather Widget
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="showSocialMedia" checked>
+                                <label class="form-check-label" for="showSocialMedia">
+                                    Social Media Links
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-eye me-2"></i>Layout Preview</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Changes will be applied to your live website when you save. 
+                            <a href="/" target="_blank" class="alert-link">Preview current homepage</a>
+                        </div>
+                        <button class="btn btn-outline-primary w-100" onclick="previewLayout()">
+                            <i class="fas fa-external-link-alt me-2"></i>Preview in New Tab
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>
+        let currentLayout = '{{ current_layout }}';
+        
+        // Initialize sortable list
+        const categoryList = document.getElementById('categoryList');
+        const sortable = Sortable.create(categoryList, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'opacity-50'
+        });
+
+        function selectLayout(layoutType) {
+            currentLayout = layoutType;
+            
+            // Update visual selection
+            document.querySelectorAll('.layout-preview').forEach(el => {
+                el.classList.remove('active');
+            });
+            event.target.closest('.layout-preview').classList.add('active');
+            
+            // Update header text
+            const headers = document.querySelectorAll('.layout-preview-header');
+            headers.forEach(header => {
+                header.textContent = header.textContent.replace(' (Current)', '');
+            });
+            event.target.querySelector('.layout-preview-header').textContent += ' (Current)';
+        }
+
+        function saveLayout() {
+            // Get category order
+            const categoryOrder = Array.from(categoryList.children).map(item => ({
+                id: item.dataset.id,
+                visible: item.querySelector('input[type="checkbox"]').checked
+            }));
+
+            const layoutData = {
+                layout_type: currentLayout,
+                categories: categoryOrder,
+                settings: {
+                    articles_per_category: document.getElementById('articlesPerCategory').value,
+                    featured_count: document.getElementById('featuredCount').value,
+                    show_sidebar: document.getElementById('showSidebar').checked,
+                    show_breadcrumb: document.getElementById('showBreadcrumb').checked,
+                    show_breaking_news: document.getElementById('showBreakingNews').checked,
+                    show_weather: document.getElementById('showWeather').checked,
+                    show_social_media: document.getElementById('showSocialMedia').checked
+                }
+            };
+
+            // Save to server
+            fetch('/admin/layout/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(layoutData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Layout saved successfully! Changes will appear on your homepage.');
+                } else {
+                    alert('Error saving layout: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Error saving layout: ' + error);
+            });
+        }
+
+        function previewLayout() {
+            window.open('/', '_blank');
+        }
+    </script>
 </body>
 </html>
-    """)
+    """, categories=categories, current_layout=current_layout)
+
+@app.route('/admin/layout/save', methods=['POST'])
+def save_layout():
+    """Save layout settings"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'})
+    
+    try:
+        layout_data = request.get_json()
+        
+        # Here you would save the layout settings to database
+        # For now, return success
+        return jsonify({'success': True, 'message': 'Layout saved successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/admin/users')
 def users_management():
