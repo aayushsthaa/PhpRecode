@@ -146,6 +146,29 @@ function getSidebarWidgets() {
     return $stmt->fetchAll();
 }
 
+// URL Helper Functions for XAMPP compatibility
+function getBaseUrl() {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'];
+    $script = $_SERVER['SCRIPT_NAME'];
+    $path = str_replace(basename($script), '', $script);
+    return $protocol . '://' . $host . $path;
+}
+
+function url($path = '') {
+    $base = getBaseUrl();
+    $path = ltrim($path, '/');
+    return $base . $path;
+}
+
+function asset($path) {
+    return url($path);
+}
+
+function adminUrl($path = '') {
+    return url('admin/' . ltrim($path, '/'));
+}
+
 function isLoggedIn() {
     return isset($_SESSION['user_id']);
 }

@@ -4,7 +4,7 @@ require_once '../includes/auth.php';
 
 // Redirect if already logged in
 if (isLoggedIn()) {
-    header('Location: /admin/dashboard.php');
+    header('Location: ' . adminUrl('dashboard.php'));
     exit;
 }
 
@@ -15,7 +15,7 @@ if ($_POST) {
     $password = $_POST['password'];
     
     if (login($username, $password)) {
-        header('Location: /admin/dashboard.php');
+        header('Location: ' . adminUrl('dashboard.php'));
         exit;
     } else {
         $error = 'Invalid username or password.';
@@ -72,7 +72,7 @@ if ($_POST) {
                         </form>
                         
                         <div class="text-center mt-4">
-                            <a href="/" class="text-muted text-decoration-none">
+                            <a href="<?php echo url(); ?>" class="text-muted text-decoration-none">
                                 <i class="fas fa-arrow-left me-1"></i>Back to Website
                             </a>
                         </div>

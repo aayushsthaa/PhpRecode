@@ -12,7 +12,7 @@
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
-    <link href="/css/style.css" rel="stylesheet">
+    <link href="<?php echo asset('css/style.css'); ?>" rel="stylesheet">
     
     <?php echo getSetting('header_code', ''); ?>
 </head>
@@ -20,7 +20,7 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
         <div class="container">
-            <a class="navbar-brand fw-bold fs-2" href="/"><?php echo getSetting('site_name', 'Echhapa News'); ?></a>
+            <a class="navbar-brand fw-bold fs-2" href="<?php echo url(); ?>"><?php echo getSetting('site_name', 'Echhapa News'); ?></a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -33,11 +33,11 @@
                     foreach (array_slice($categories, 0, 6) as $category):
                     ?>
                     <li class="nav-item">
-                        <a class="nav-link" href="/category.php?slug=<?php echo $category['slug']; ?>"><?php echo $category['name']; ?></a>
+                        <a class="nav-link" href="<?php echo url('category.php?slug=' . $category['slug']); ?>"><?php echo $category['name']; ?></a>
                     </li>
                     <?php endforeach; ?>
                     <li class="nav-item">
-                        <a class="nav-link" href="/contact.php">Contact</a>
+                        <a class="nav-link" href="<?php echo url('contact.php'); ?>">Contact</a>
                     </li>
                 </ul>
             </div>

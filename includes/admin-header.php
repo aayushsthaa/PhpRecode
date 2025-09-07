@@ -14,7 +14,7 @@
     <!-- TinyMCE for rich text editing -->
     <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
     <!-- Custom Admin CSS -->
-    <link href="/css/admin.css" rel="stylesheet">
+    <link href="<?php echo asset('css/admin.css'); ?>" rel="stylesheet">
 </head>
 <body>
     <div class="container-fluid">
@@ -29,7 +29,7 @@
                     <h1 class="h2"><?php echo isset($pageTitle) ? $pageTitle : 'Dashboard'; ?></h1>
                     <div class="btn-toolbar mb-2 mb-md-0">
                         <div class="btn-group me-2">
-                            <a href="/" class="btn btn-sm btn-outline-secondary" target="_blank">
+                            <a href="<?php echo url(); ?>" class="btn btn-sm btn-outline-secondary" target="_blank">
                                 <i class="fas fa-external-link-alt me-1"></i>View Site
                             </a>
                         </div>
@@ -38,10 +38,10 @@
                                 <i class="fas fa-user me-1"></i><?php echo $_SESSION['username']; ?>
                             </button>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/admin/profile.php"><i class="fas fa-user-edit me-2"></i>Profile</a></li>
-                                <li><a class="dropdown-item" href="/admin/settings.php"><i class="fas fa-cog me-2"></i>Settings</a></li>
+                                <li><a class="dropdown-item" href="<?php echo adminUrl('profile.php'); ?>"><i class="fas fa-user-edit me-2"></i>Profile</a></li>
+                                <li><a class="dropdown-item" href="<?php echo adminUrl('settings.php'); ?>"><i class="fas fa-cog me-2"></i>Settings</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/admin/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                                <li><a class="dropdown-item" href="<?php echo adminUrl('logout.php'); ?>"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
                             </ul>
                         </div>
                     </div>
