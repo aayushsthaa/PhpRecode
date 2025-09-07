@@ -2796,6 +2796,471 @@ def add_ad():
     
     return redirect(url_for('ad_management'))
 
+# Articles Management
+@app.route('/admin/articles')
+def articles_management():
+    """Articles Management System"""
+    if 'user_id' not in session:
+        return redirect(url_for('admin_login'))
+    
+    articles = get_articles(50)  # Get all articles for management
+    
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Articles Management - Echhapa CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+        }
+        body { background: #f8f9fa; }
+        .main-content { margin-left: var(--sidebar-width); padding: 2rem; }
+        .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: var(--sidebar-width); background: #34495e; color: white; z-index: 1000; overflow-y: auto; }
+        .sidebar-header { padding: 1.5rem; background: var(--primary-color); }
+        .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1.5rem; display: flex; align-items: center; text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent; }
+        .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
+        .nav-link i { width: 20px; margin-right: 0.75rem; }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h4><i class="fas fa-newspaper me-2"></i>Echhapa CMS</h4>
+        </div>
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin') }}" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+            <a href="{{ url_for('articles_management') }}" class="nav-link active"><i class="fas fa-newspaper"></i>Articles</a>
+            <a href="{{ url_for('add_article') }}" class="nav-link"><i class="fas fa-plus"></i>New Article</a>
+            <a href="{{ url_for('ad_management') }}" class="nav-link"><i class="fas fa-ad"></i>Advertisements</a>
+            <a href="{{ url_for('layout_management') }}" class="nav-link"><i class="fas fa-th-large"></i>Layout</a>
+            <a href="{{ url_for('users_management') }}" class="nav-link"><i class="fas fa-users"></i>Users</a>
+            <a href="{{ url_for('categories_management') }}" class="nav-link"><i class="fas fa-folder"></i>Categories</a>
+            <a href="{{ url_for('site_settings') }}" class="nav-link"><i class="fas fa-cog"></i>Settings</a>
+            <hr>
+            <a href="{{ url_for('admin_logout') }}" class="nav-link"><i class="fas fa-sign-out-alt"></i>Logout</a>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-newspaper me-3"></i>Articles Management</h1>
+            <a href="{{ url_for('add_article') }}" class="btn btn-primary"><i class="fas fa-plus me-2"></i>Create New Article</a>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Author</th>
+                                        <th>Category</th>
+                                        <th>Status</th>
+                                        <th>Views</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for article in articles %}
+                                    <tr>
+                                        <td><strong>{{ article.title }}</strong></td>
+                                        <td>{{ article.author }}</td>
+                                        <td>{{ article.category_name or 'Uncategorized' }}</td>
+                                        <td><span class="badge bg-success">{{ article.status }}</span></td>
+                                        <td>{{ article.views or 0 }}</td>
+                                        <td>{{ article.created_at.strftime('%Y-%m-%d') if article.created_at else 'N/A' }}</td>
+                                        <td>
+                                            <a href="/article/{{ article.slug }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+    """, articles=articles)
+
+@app.route('/admin/articles/add')
+def add_article():
+    """Add New Article Form"""
+    if 'user_id' not in session:
+        return redirect(url_for('admin_login'))
+    
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Article - Echhapa CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+        }
+        body { background: #f8f9fa; }
+        .main-content { margin-left: var(--sidebar-width); padding: 2rem; }
+        .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: var(--sidebar-width); background: #34495e; color: white; z-index: 1000; overflow-y: auto; }
+        .sidebar-header { padding: 1.5rem; background: var(--primary-color); }
+        .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1.5rem; display: flex; align-items: center; text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent; }
+        .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
+        .nav-link i { width: 20px; margin-right: 0.75rem; }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h4><i class="fas fa-newspaper me-2"></i>Echhapa CMS</h4>
+        </div>
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin') }}" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+            <a href="{{ url_for('articles_management') }}" class="nav-link"><i class="fas fa-newspaper"></i>Articles</a>
+            <a href="{{ url_for('add_article') }}" class="nav-link active"><i class="fas fa-plus"></i>New Article</a>
+            <a href="{{ url_for('ad_management') }}" class="nav-link"><i class="fas fa-ad"></i>Advertisements</a>
+            <a href="{{ url_for('layout_management') }}" class="nav-link"><i class="fas fa-th-large"></i>Layout</a>
+            <a href="{{ url_for('users_management') }}" class="nav-link"><i class="fas fa-users"></i>Users</a>
+            <a href="{{ url_for('categories_management') }}" class="nav-link"><i class="fas fa-folder"></i>Categories</a>
+            <a href="{{ url_for('site_settings') }}" class="nav-link"><i class="fas fa-cog"></i>Settings</a>
+            <hr>
+            <a href="{{ url_for('admin_logout') }}" class="nav-link"><i class="fas fa-sign-out-alt"></i>Logout</a>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-plus me-3"></i>Create New Article</h1>
+            <a href="{{ url_for('articles_management') }}" class="btn btn-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Articles</a>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <form>
+                            <div class="mb-3">
+                                <label class="form-label">Article Title</label>
+                                <input type="text" class="form-control" placeholder="Enter article title">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Content</label>
+                                <textarea class="form-control" rows="10" placeholder="Write your article content here..."></textarea>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Category</label>
+                                        <select class="form-control">
+                                            <option>Select category</option>
+                                            <option>Technology</option>
+                                            <option>Business</option>
+                                            <option>Sports</option>
+                                            <option>Entertainment</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Status</label>
+                                        <select class="form-control">
+                                            <option>Published</option>
+                                            <option>Draft</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Featured Image</label>
+                                <input type="file" class="form-control" accept="image/*">
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Publish Article</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+    """)
+
+@app.route('/admin/layout')
+def layout_management():
+    """Layout Management System"""
+    if 'user_id' not in session:
+        return redirect(url_for('admin_login'))
+    
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Layout Management - Echhapa CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+        }
+        body { background: #f8f9fa; }
+        .main-content { margin-left: var(--sidebar-width); padding: 2rem; }
+        .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: var(--sidebar-width); background: #34495e; color: white; z-index: 1000; overflow-y: auto; }
+        .sidebar-header { padding: 1.5rem; background: var(--primary-color); }
+        .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1.5rem; display: flex; align-items: center; text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent; }
+        .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
+        .nav-link i { width: 20px; margin-right: 0.75rem; }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h4><i class="fas fa-newspaper me-2"></i>Echhapa CMS</h4>
+        </div>
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin') }}" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+            <a href="{{ url_for('articles_management') }}" class="nav-link"><i class="fas fa-newspaper"></i>Articles</a>
+            <a href="{{ url_for('add_article') }}" class="nav-link"><i class="fas fa-plus"></i>New Article</a>
+            <a href="{{ url_for('ad_management') }}" class="nav-link"><i class="fas fa-ad"></i>Advertisements</a>
+            <a href="{{ url_for('layout_management') }}" class="nav-link active"><i class="fas fa-th-large"></i>Layout</a>
+            <a href="{{ url_for('users_management') }}" class="nav-link"><i class="fas fa-users"></i>Users</a>
+            <a href="{{ url_for('categories_management') }}" class="nav-link"><i class="fas fa-folder"></i>Categories</a>
+            <a href="{{ url_for('site_settings') }}" class="nav-link"><i class="fas fa-cog"></i>Settings</a>
+            <hr>
+            <a href="{{ url_for('admin_logout') }}" class="nav-link"><i class="fas fa-sign-out-alt"></i>Logout</a>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <h1><i class="fas fa-th-large me-3"></i>Layout Management</h1>
+        <p class="lead">Manage homepage layout and article arrangement</p>
+        
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>Layout management system is under development. This will allow you to customize the homepage layout and arrange articles.
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+    """)
+
+@app.route('/admin/users')
+def users_management():
+    """Users Management System"""
+    if 'user_id' not in session:
+        return redirect(url_for('admin_login'))
+    
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users Management - Echhapa CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+        }
+        body { background: #f8f9fa; }
+        .main-content { margin-left: var(--sidebar-width); padding: 2rem; }
+        .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: var(--sidebar-width); background: #34495e; color: white; z-index: 1000; overflow-y: auto; }
+        .sidebar-header { padding: 1.5rem; background: var(--primary-color); }
+        .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1.5rem; display: flex; align-items: center; text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent; }
+        .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
+        .nav-link i { width: 20px; margin-right: 0.75rem; }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h4><i class="fas fa-newspaper me-2"></i>Echhapa CMS</h4>
+        </div>
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin') }}" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+            <a href="{{ url_for('articles_management') }}" class="nav-link"><i class="fas fa-newspaper"></i>Articles</a>
+            <a href="{{ url_for('add_article') }}" class="nav-link"><i class="fas fa-plus"></i>New Article</a>
+            <a href="{{ url_for('ad_management') }}" class="nav-link"><i class="fas fa-ad"></i>Advertisements</a>
+            <a href="{{ url_for('layout_management') }}" class="nav-link"><i class="fas fa-th-large"></i>Layout</a>
+            <a href="{{ url_for('users_management') }}" class="nav-link active"><i class="fas fa-users"></i>Users</a>
+            <a href="{{ url_for('categories_management') }}" class="nav-link"><i class="fas fa-folder"></i>Categories</a>
+            <a href="{{ url_for('site_settings') }}" class="nav-link"><i class="fas fa-cog"></i>Settings</a>
+            <hr>
+            <a href="{{ url_for('admin_logout') }}" class="nav-link"><i class="fas fa-sign-out-alt"></i>Logout</a>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <h1><i class="fas fa-users me-3"></i>Users Management</h1>
+        <p class="lead">Manage website administrators and authors</p>
+        
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>User management system is under development. This will allow you to create and manage user accounts.
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+    """)
+
+@app.route('/admin/categories')
+def categories_management():
+    """Categories Management System"""
+    if 'user_id' not in session:
+        return redirect(url_for('admin_login'))
+    
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categories Management - Echhapa CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+        }
+        body { background: #f8f9fa; }
+        .main-content { margin-left: var(--sidebar-width); padding: 2rem; }
+        .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: var(--sidebar-width); background: #34495e; color: white; z-index: 1000; overflow-y: auto; }
+        .sidebar-header { padding: 1.5rem; background: var(--primary-color); }
+        .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1.5rem; display: flex; align-items: center; text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent; }
+        .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
+        .nav-link i { width: 20px; margin-right: 0.75rem; }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h4><i class="fas fa-newspaper me-2"></i>Echhapa CMS</h4>
+        </div>
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin') }}" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+            <a href="{{ url_for('articles_management') }}" class="nav-link"><i class="fas fa-newspaper"></i>Articles</a>
+            <a href="{{ url_for('add_article') }}" class="nav-link"><i class="fas fa-plus"></i>New Article</a>
+            <a href="{{ url_for('ad_management') }}" class="nav-link"><i class="fas fa-ad"></i>Advertisements</a>
+            <a href="{{ url_for('layout_management') }}" class="nav-link"><i class="fas fa-th-large"></i>Layout</a>
+            <a href="{{ url_for('users_management') }}" class="nav-link"><i class="fas fa-users"></i>Users</a>
+            <a href="{{ url_for('categories_management') }}" class="nav-link active"><i class="fas fa-folder"></i>Categories</a>
+            <a href="{{ url_for('site_settings') }}" class="nav-link"><i class="fas fa-cog"></i>Settings</a>
+            <hr>
+            <a href="{{ url_for('admin_logout') }}" class="nav-link"><i class="fas fa-sign-out-alt"></i>Logout</a>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <h1><i class="fas fa-folder me-3"></i>Categories Management</h1>
+        <p class="lead">Organize articles into categories</p>
+        
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>Category management system is under development. This will allow you to create and manage article categories.
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+    """)
+
+@app.route('/admin/settings')
+def site_settings():
+    """Site Settings Management"""
+    if 'user_id' not in session:
+        return redirect(url_for('admin_login'))
+    
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Settings - Echhapa CMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+        }
+        body { background: #f8f9fa; }
+        .main-content { margin-left: var(--sidebar-width); padding: 2rem; }
+        .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: var(--sidebar-width); background: #34495e; color: white; z-index: 1000; overflow-y: auto; }
+        .sidebar-header { padding: 1.5rem; background: var(--primary-color); }
+        .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1.5rem; display: flex; align-items: center; text-decoration: none; transition: all 0.3s ease; border-left: 3px solid transparent; }
+        .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
+        .nav-link i { width: 20px; margin-right: 0.75rem; }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h4><i class="fas fa-newspaper me-2"></i>Echhapa CMS</h4>
+        </div>
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin') }}" class="nav-link"><i class="fas fa-tachometer-alt"></i>Dashboard</a>
+            <a href="{{ url_for('articles_management') }}" class="nav-link"><i class="fas fa-newspaper"></i>Articles</a>
+            <a href="{{ url_for('add_article') }}" class="nav-link"><i class="fas fa-plus"></i>New Article</a>
+            <a href="{{ url_for('ad_management') }}" class="nav-link"><i class="fas fa-ad"></i>Advertisements</a>
+            <a href="{{ url_for('layout_management') }}" class="nav-link"><i class="fas fa-th-large"></i>Layout</a>
+            <a href="{{ url_for('users_management') }}" class="nav-link"><i class="fas fa-users"></i>Users</a>
+            <a href="{{ url_for('categories_management') }}" class="nav-link"><i class="fas fa-folder"></i>Categories</a>
+            <a href="{{ url_for('site_settings') }}" class="nav-link active"><i class="fas fa-cog"></i>Settings</a>
+            <hr>
+            <a href="{{ url_for('admin_logout') }}" class="nav-link"><i class="fas fa-sign-out-alt"></i>Logout</a>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <h1><i class="fas fa-cog me-3"></i>Site Settings</h1>
+        <p class="lead">Configure website settings and preferences</p>
+        
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>Site settings management system is under development. This will allow you to configure website settings, SEO, social media, and more.
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+    """)
+
 # Additional admin routes are included in this file
 
 # Initialize database when app starts
