@@ -425,238 +425,448 @@ def index():
     <title>Echhapa News - Your Trusted Source</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
     <style>
-        :root {
-            --primary-color: #2c3e50;
-            --accent-color: #e74c3c;
-            --text-color: #2c3e50;
-            --bg-color: #f8f9fa;
-        }
-        
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        /* Professional News Homepage Design */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Arial', sans-serif;
             line-height: 1.6;
-            color: var(--text-color);
+            color: #1a1a1a;
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
         }
         
-        .navbar-brand { 
-            font-family: 'Times New Roman', serif; 
-            font-weight: 900; 
-            color: var(--accent-color) !important; 
-            font-size: 2rem;
+        /* Header and Navigation */
+        .masthead {
+            border-bottom: 1px solid #e5e5e5;
+            padding: 15px 0;
         }
         
-        .breaking-news { 
-            background: linear-gradient(45deg, var(--accent-color), #c0392b);
-            animation: pulse 2s infinite;
+        .site-title {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            font-weight: 900;
+            font-size: 2.5rem;
+            color: #000000;
+            text-decoration: none;
+            letter-spacing: -1px;
         }
         
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.8; }
-            100% { opacity: 1; }
+        .site-tagline {
+            font-size: 0.9rem;
+            color: #666666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
         }
         
-        .hero-section {
-            background: linear-gradient(135deg, var(--primary-color) 0%, #34495e 100%);
-            color: white;
-            padding: 4rem 0;
+        .primary-nav {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e5e5e5;
+            padding: 0;
         }
         
-        .featured-article {
-            position: relative;
-            overflow: hidden;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+        .primary-nav .nav-link {
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            color: #333333;
+            padding: 15px 20px;
+            border-right: 1px solid #e5e5e5;
+            transition: all 0.2s ease;
         }
         
-        .featured-article:hover { 
-            transform: translateY(-5px); 
+        .primary-nav .nav-link:hover {
+            background-color: #000000;
+            color: #ffffff;
         }
         
-        .card { 
-            border: none;
-            border-radius: 15px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-        }
-        
-        .card:hover { 
-            transform: translateY(-5px); 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
-        }
-        
-        .article-link { 
-            text-decoration: none; 
-            color: inherit; 
-            transition: color 0.3s ease;
-        }
-        
-        .article-link:hover { 
-            color: var(--accent-color);
-        }
-        
-        .category-badge {
-            background: var(--accent-color);
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.75rem;
+        /* Breaking News */
+        .breaking-news {
+            background-color: #000000;
+            color: #ffffff;
+            padding: 10px 0;
             font-weight: 600;
             text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
         }
         
-        .sidebar-widget {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-        }
-        
-        .widget-title {
-            color: var(--primary-color);
+        .breaking-badge {
+            background-color: #dc3545;
+            color: #ffffff;
+            padding: 4px 8px;
             font-weight: 700;
-            margin-bottom: 1rem;
-            position: relative;
+            margin-right: 15px;
         }
         
-        .widget-title::after {
-            content: '';
-            position: absolute;
-            bottom: -0.5rem;
-            left: 0;
-            width: 50px;
-            height: 3px;
-            background: var(--accent-color);
-            border-radius: 2px;
+        /* Hero Section */
+        .hero-section {
+            padding: 40px 0;
+            border-bottom: 2px solid #000000;
         }
         
-        .trending-item {
-            display: flex;
-            align-items: center;
-            padding: 0.75rem 0;
-            border-bottom: 1px solid #eee;
-            transition: background 0.3s ease;
+        .featured-story {
+            border-right: 1px solid #e5e5e5;
+            padding-right: 30px;
         }
         
-        .trending-item:hover {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding-left: 0.5rem;
+        .featured-story h1 {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 15px;
+            color: #000000;
         }
         
-        .trending-number {
-            background: var(--accent-color);
-            color: white;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 1rem;
-            font-weight: bold;
-            font-size: 0.875rem;
+        .featured-story .lead {
+            font-size: 1.1rem;
+            color: #666666;
+            line-height: 1.5;
+            margin-bottom: 15px;
         }
         
-        .footer {
-            background: var(--primary-color);
-            color: white;
-            margin-top: 4rem;
+        .story-meta {
+            font-size: 0.85rem;
+            color: #666666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 20px;
         }
         
-        .social-links a {
-            color: white;
+        .secondary-stories {
+            padding-left: 30px;
+        }
+        
+        .secondary-story {
+            border-bottom: 1px solid #e5e5e5;
+            padding: 15px 0;
+        }
+        
+        .secondary-story:last-child {
+            border-bottom: none;
+        }
+        
+        .secondary-story h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            line-height: 1.3;
+            margin-bottom: 8px;
+        }
+        
+        .secondary-story h3 a {
+            color: #000000;
+            text-decoration: none;
+        }
+        
+        .secondary-story h3 a:hover {
+            color: #666666;
+        }
+        
+        /* Main Content Sections */
+        .content-section {
+            padding: 40px 0;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        
+        .section-header {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
             font-size: 1.25rem;
-            margin: 0 0.5rem;
-            transition: color 0.3s ease;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #000000;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 8px;
+            margin-bottom: 0;
         }
         
-        .social-links a:hover {
-            color: var(--accent-color);
+        /* Article Cards */
+        .news-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
         }
         
-        .newsletter-form {
-            background: linear-gradient(135deg, var(--accent-color), #c0392b);
-            border-radius: 15px;
-            padding: 2rem;
-            color: white;
+        .article-card {
+            border-bottom: 1px solid #e5e5e5;
+            padding-bottom: 20px;
         }
         
-        .btn-outline-accent {
-            border-color: var(--accent-color);
-            color: var(--accent-color);
+        .article-card:last-child {
+            border-bottom: none;
         }
         
-        .btn-outline-accent:hover {
-            background: var(--accent-color);
-            border-color: var(--accent-color);
-            color: white;
+        .article-card h4 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            line-height: 1.3;
+            margin-bottom: 10px;
+        }
+        
+        .article-card h4 a {
+            color: #000000;
+            text-decoration: none;
+        }
+        
+        .article-card h4 a:hover {
+            color: #666666;
+        }
+        
+        .article-excerpt {
+            color: #666666;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+        
+        .article-meta {
+            font-size: 0.8rem;
+            color: #666666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Category Badge */
+        .category-badge {
+            background-color: #000000;
+            color: #ffffff;
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            background-color: #f8f9fa;
+            border-left: 2px solid #000000;
+            padding: 30px;
+        }
+        
+        .sidebar-section {
+            border-bottom: 1px solid #e5e5e5;
+            padding-bottom: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .sidebar-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .sidebar-title {
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #000000;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 5px;
+        }
+        
+        .sidebar-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .sidebar-list li {
+            border-bottom: 1px solid #e5e5e5;
+            padding: 8px 0;
+        }
+        
+        .sidebar-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .sidebar-list a {
+            color: #333333;
+            text-decoration: none;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            display: block;
+        }
+        
+        .sidebar-list a:hover {
+            color: #000000;
+        }
+        
+        /* Newsletter */
+        .newsletter-signup {
+            background-color: #000000;
+            color: #ffffff;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .newsletter-signup h5 {
+            color: #ffffff;
+            margin-bottom: 10px;
+        }
+        
+        .newsletter-signup input {
+            border: none;
+            padding: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .newsletter-signup button {
+            background-color: #dc3545;
+            border: none;
+            color: #ffffff;
+            padding: 10px 15px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Footer */
+        .site-footer {
+            background-color: #000000;
+            color: #ffffff;
+            border-top: 1px solid #333333;
+            margin-top: 50px;
+            padding: 40px 0 20px;
+        }
+        
+        .site-footer h6 {
+            color: #ffffff;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            margin-bottom: 15px;
+        }
+        
+        .site-footer a {
+            color: #cccccc;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .site-footer a:hover {
+            color: #ffffff;
+        }
+        
+        .social-icons a {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            background-color: #333333;
+            color: #ffffff;
+            margin-right: 10px;
+            transition: background-color 0.2s ease;
+        }
+        
+        .social-icons a:hover {
+            background-color: #555555;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .featured-story {
+                border-right: none;
+                padding-right: 0;
+                margin-bottom: 30px;
+            }
+            
+            .secondary-stories {
+                padding-left: 0;
+            }
+            
+            .sidebar {
+                margin-top: 30px;
+                border-left: none;
+                border-top: 2px solid #000000;
+                padding-top: 30px;
+            }
+            
+            .primary-nav .nav-link {
+                border-right: none;
+                border-bottom: 1px solid #e5e5e5;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
+    <!-- Header -->
+    <header class="masthead">
         <div class="container">
-            <a class="navbar-brand" href="/">
-                <i class="fas fa-newspaper me-2"></i>Echhapa News
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link fw-semibold" href="/">Home</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle fw-semibold" href="#" role="button" data-bs-toggle="dropdown">
-                            Categories
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <a href="/" class="site-title">Echhapa News</a>
+                    <div class="site-tagline">Your Trusted Source for Breaking News</div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <form class="d-flex me-3">
+                            <input class="form-control form-control-sm" type="search" placeholder="Search news...">
+                            <button class="btn btn-outline-dark btn-sm" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </form>
+                        <a href="/admin" class="btn btn-outline-dark btn-sm">
+                            <i class="fas fa-cog me-1"></i>Admin
                         </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#"><i class="fas fa-globe me-2"></i>World News</a></li>
-                            <li><a class="dropdown-item" href="#"><i class="fas fa-laptop me-2"></i>Technology</a></li>
-                            <li><a class="dropdown-item" href="#"><i class="fas fa-chart-line me-2"></i>Business</a></li>
-                            <li><a class="dropdown-item" href="#"><i class="fas fa-futbol me-2"></i>Sports</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link fw-semibold" href="#">About</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link fw-semibold" href="#">Contact</a>
-                    </li>
-                </ul>
-                <div class="d-flex align-items-center">
-                    <form class="d-flex me-3">
-                        <input class="form-control" type="search" placeholder="Search news...">
-                        <button class="btn btn-outline-accent" type="submit">
-                            <i class="fas fa-search"></i>
-                        </button>
-                    </form>
-                    <a href="/admin" class="btn btn-outline-primary btn-sm">
-                        <i class="fas fa-cog me-1"></i>Admin
-                    </a>
+                    </div>
                 </div>
             </div>
         </div>
+    </header>
+    
+    <!-- Primary Navigation -->
+    <nav class="primary-nav">
+        <div class="container">
+            <ul class="nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">World News</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Politics</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Business</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Technology</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Sports</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Entertainment</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Opinion</a>
+                </li>
+            </ul>
+        </div>
     </nav>
     
-    <!-- Breaking News Ticker -->
-    <div class="breaking-news text-white py-2">
+    <!-- Breaking News -->
+    <div class="breaking-news">
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-auto">
-                    <strong><i class="fas fa-bolt me-2"></i>BREAKING</strong>
+                    <span class="breaking-badge">Breaking</span>
                 </div>
                 <div class="col">
-                    <div class="d-flex">
-                        <marquee class="text-white">Global Economic Summit concludes with historic agreements • Tech innovation drives renewable energy breakthrough • Championship finals set new viewership records</marquee>
-                    </div>
+                    <span>Global Economic Summit concludes with historic agreements • Tech innovation drives renewable energy breakthrough • Championship finals set new viewership records</span>
                 </div>
             </div>
         </div>
@@ -666,39 +876,38 @@ def index():
     {% if articles %}
     <section class="hero-section">
         <div class="container">
-            <div class="row align-items-center">
+            <div class="row">
                 <div class="col-lg-8">
-                    <div class="featured-article bg-white text-dark p-4">
-                        <div class="mb-2">
-                            <span class="category-badge">Featured</span>
-                        </div>
-                        <h1 class="display-5 fw-bold mb-3">
-                            <a href="/article/{{ articles[0].slug or articles[0].id }}" class="article-link">
+                    <div class="featured-story">
+                        <span class="category-badge">Featured Story</span>
+                        <h1>
+                            <a href="/article/{{ articles[0].slug or articles[0].id }}">
                                 {{ articles[0].title }}
                             </a>
                         </h1>
-                        <p class="lead mb-3">{{ articles[0].excerpt or (articles[0].content[:200] + "...") }}</p>
-                        <div class="d-flex align-items-center text-muted mb-3">
-                            <i class="fas fa-user me-2"></i>
-                            <span class="me-3">{{ articles[0].author }}</span>
-                            <i class="fas fa-calendar me-2"></i>
-                            <span>{{ articles[0].created_at.strftime('%B %d, %Y') if articles[0].created_at.strftime else articles[0].created_at }}</span>
+                        <div class="story-meta">
+                            By {{ articles[0].author }} • {{ articles[0].created_at.strftime('%B %d, %Y') if articles[0].created_at.strftime else articles[0].created_at }}
                         </div>
-                        <a href="/article/{{ articles[0].slug or articles[0].id }}" class="btn btn-primary btn-lg">
-                            Read Full Story <i class="fas fa-arrow-right ms-2"></i>
-                        </a>
+                        <p class="lead">{{ articles[0].excerpt or (articles[0].content[:250] + "...") }}</p>
                     </div>
                 </div>
                 <div class="col-lg-4">
-                    <div class="text-center text-white">
-                        <h2 class="mb-3">Stay Informed</h2>
-                        <p class="lead">Get the latest news and insights from around the world</p>
-                        <div class="social-links mt-4">
-                            <a href="#"><i class="fab fa-facebook"></i></a>
-                            <a href="#"><i class="fab fa-twitter"></i></a>
-                            <a href="#"><i class="fab fa-instagram"></i></a>
-                            <a href="#"><i class="fab fa-linkedin"></i></a>
+                    <div class="secondary-stories">
+                        {% for article in articles[1:4] %}
+                        <div class="secondary-story">
+                            {% if article.category_name %}
+                            <span class="category-badge">{{ article.category_name }}</span>
+                            {% endif %}
+                            <h3>
+                                <a href="/article/{{ article.slug or article.id }}">
+                                    {{ article.title }}
+                                </a>
+                            </h3>
+                            <div class="story-meta">
+                                {{ article.created_at.strftime('%B %d') if article.created_at.strftime else article.created_at }}
+                            </div>
                         </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -707,135 +916,118 @@ def index():
     {% endif %}
 
     <!-- Main Content -->
-    <div class="container py-5">
+    <div class="container">
         <div class="row">
-            <!-- Article Grid -->
+            <!-- Main Articles -->
             <div class="col-lg-8">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2 class="fw-bold">Latest Stories</h2>
-                    <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-outline-secondary active">Grid</button>
-                        <button type="button" class="btn btn-outline-secondary">List</button>
+                <!-- Latest News Section -->
+                <section class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Latest News</h2>
                     </div>
-                </div>
-                
-                <div class="row" id="articles-grid">
-                    {% for article in articles[1:9] %}
-                    <div class="col-md-6 mb-4">
-                        <div class="card h-100">
-                            {% if article.featured_image %}
-                            <img src="{{ article.featured_image }}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="{{ article.title }}">
-                            {% else %}
-                            <div class="card-img-top bg-gradient d-flex align-items-center justify-content-center" style="height: 200px; background: linear-gradient(45deg, #3498db, #2980b9);">
-                                <i class="fas fa-newspaper fa-3x text-white opacity-50"></i>
-                            </div>
+                    <div class="news-grid">
+                        {% for article in articles[4:10] %}
+                        <article class="article-card">
+                            {% if article.category_name %}
+                            <span class="category-badge">{{ article.category_name }}</span>
                             {% endif %}
-                            <div class="card-body">
-                                {% if article.category_name %}
-                                <span class="category-badge mb-2 d-inline-block">{{ article.category_name }}</span>
-                                {% endif %}
-                                <h5 class="card-title">
-                                    <a href="/article/{{ article.slug or article.id }}" class="article-link">
-                                        {{ article.title }}
-                                    </a>
-                                </h5>
-                                <p class="card-text text-muted">
-                                    {{ article.excerpt or (article.content[:120] + "...") }}
-                                </p>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <small class="text-muted">
-                                        <i class="fas fa-user me-1"></i>{{ article.author }}
-                                    </small>
-                                    <small class="text-muted">
-                                        {{ article.created_at.strftime('%b %d') if article.created_at.strftime else article.created_at }}
-                                    </small>
-                                </div>
+                            <h4>
+                                <a href="/article/{{ article.slug or article.id }}">
+                                    {{ article.title }}
+                                </a>
+                            </h4>
+                            <p class="article-excerpt">
+                                {{ article.excerpt or (article.content[:150] + "...") }}
+                            </p>
+                            <div class="article-meta">
+                                By {{ article.author }} • {{ article.created_at.strftime('%B %d, %Y') if article.created_at.strftime else article.created_at }}
                             </div>
-                        </div>
+                        </article>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
-                </div>
+                </section>
                 
-                <!-- Load More Button -->
-                <div class="text-center mt-4">
-                    <button class="btn btn-outline-primary btn-lg">
-                        <i class="fas fa-plus me-2"></i>Load More Articles
-                    </button>
-                </div>
+                <!-- World News Section -->
+                {% if articles[10:] %}
+                <section class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">World News</h2>
+                    </div>
+                    <div class="news-grid">
+                        {% for article in articles[10:12] %}
+                        <article class="article-card">
+                            {% if article.category_name %}
+                            <span class="category-badge">{{ article.category_name }}</span>
+                            {% endif %}
+                            <h4>
+                                <a href="/article/{{ article.slug or article.id }}">
+                                    {{ article.title }}
+                                </a>
+                            </h4>
+                            <p class="article-excerpt">
+                                {{ article.excerpt or (article.content[:150] + "...") }}
+                            </p>
+                            <div class="article-meta">
+                                By {{ article.author }} • {{ article.created_at.strftime('%B %d, %Y') if article.created_at.strftime else article.created_at }}
+                            </div>
+                        </article>
+                        {% endfor %}
+                    </div>
+                </section>
+                {% endif %}
             </div>
             
             <!-- Sidebar -->
             <div class="col-lg-4">
-                <!-- Newsletter Widget -->
-                <div class="newsletter-form text-center">
-                    <h4 class="fw-bold mb-3">
-                        <i class="fas fa-envelope me-2"></i>Newsletter
-                    </h4>
-                    <p class="mb-3">Get the latest news delivered to your inbox</p>
-                    <form>
-                        <div class="input-group mb-3">
-                            <input type="email" class="form-control" placeholder="Your email address">
-                            <button class="btn btn-light" type="submit">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </div>
-                        <small class="opacity-75">We respect your privacy. Unsubscribe anytime.</small>
-                    </form>
-                </div>
-                
-                <!-- Trending Articles -->
-                <div class="sidebar-widget">
-                    <h5 class="widget-title">
-                        <i class="fas fa-fire me-2 text-danger"></i>Trending Now
-                    </h5>
-                    {% for article in articles[1:6] %}
-                    <div class="trending-item">
-                        <div class="trending-number">{{ loop.index }}</div>
-                        <div>
-                            <a href="/article/{{ article.slug or article.id }}" class="article-link">
-                                <strong>{{ article.title[:50] }}{% if article.title|length > 50 %}...{% endif %}</strong>
-                            </a>
-                            <div class="text-muted small mt-1">
-                                <i class="fas fa-eye me-1"></i>{{ article.views or 0 }} views
+                <div class="sidebar">
+                    <!-- Newsletter -->
+                    <div class="newsletter-signup">
+                        <h5>Subscribe to Newsletter</h5>
+                        <p>Get the latest news delivered to your inbox</p>
+                        <form>
+                            <div class="input-group">
+                                <input type="email" class="form-control" placeholder="Your email address">
+                                <button type="submit">Subscribe</button>
                             </div>
-                        </div>
+                        </form>
                     </div>
-                    {% endfor %}
-                </div>
-                
-                <!-- Categories Widget -->
-                <div class="sidebar-widget">
-                    <h5 class="widget-title">
-                        <i class="fas fa-folder me-2"></i>Categories
-                    </h5>
-                    <div class="list-group list-group-flush">
-                        <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <span><i class="fas fa-globe me-2 text-primary"></i>World News</span>
-                            <span class="badge bg-primary rounded-pill">12</span>
-                        </a>
-                        <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <span><i class="fas fa-laptop me-2 text-info"></i>Technology</span>
-                            <span class="badge bg-info rounded-pill">8</span>
-                        </a>
-                        <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <span><i class="fas fa-chart-line me-2 text-success"></i>Business</span>
-                            <span class="badge bg-success rounded-pill">15</span>
-                        </a>
-                        <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <span><i class="fas fa-futbol me-2 text-warning"></i>Sports</span>
-                            <span class="badge bg-warning rounded-pill">6</span>
-                        </a>
+                    
+                    <!-- Most Read -->
+                    <div class="sidebar-section">
+                        <h6 class="sidebar-title">Most Read</h6>
+                        <ul class="sidebar-list">
+                            {% for article in articles[1:6] %}
+                            <li>
+                                <a href="/article/{{ article.slug or article.id }}">
+                                    {{ article.title[:60] }}{% if article.title|length > 60 %}...{% endif %}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
                     </div>
-                </div>
-                
-                <!-- Ad Space -->
-                <div class="sidebar-widget text-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                    <h6 class="fw-bold mb-3">Advertisement</h6>
-                    <div style="height: 200px;" class="d-flex align-items-center justify-content-center">
-                        <div>
-                            <i class="fas fa-ad fa-3x mb-3 opacity-50"></i>
-                            <p class="mb-0">Your Ad Here</p>
-                            <small class="opacity-75">Premium placement available</small>
+                    
+                    <!-- Categories -->
+                    <div class="sidebar-section">
+                        <h6 class="sidebar-title">Categories</h6>
+                        <ul class="sidebar-list">
+                            <li><a href="#">World News</a></li>
+                            <li><a href="#">Politics</a></li>
+                            <li><a href="#">Business</a></li>
+                            <li><a href="#">Technology</a></li>
+                            <li><a href="#">Sports</a></li>
+                            <li><a href="#">Entertainment</a></li>
+                            <li><a href="#">Opinion</a></li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Advertisement -->
+                    <div class="sidebar-section text-center" style="background: #f0f0f0; padding: 30px;">
+                        <h6 style="color: #666; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;">Advertisement</h6>
+                        <div style="height: 200px; display: flex; align-items: center; justify-content: center; color: #999;">
+                            <div>
+                                <i class="fas fa-ad fa-2x mb-2"></i>
+                                <p style="font-size: 0.9rem; margin: 0;">Your Ad Here</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -844,58 +1036,65 @@ def index():
     </div>
 
     <!-- Footer -->
-    <footer class="footer py-5">
+    <footer class="site-footer">
         <div class="container">
             <div class="row">
-                <div class="col-lg-4 mb-4">
-                    <h5 class="fw-bold mb-3">
-                        <i class="fas fa-newspaper me-2"></i>Echhapa News
-                    </h5>
-                    <p class="text-light opacity-75">Your trusted source for breaking news, in-depth analysis, and comprehensive coverage of global events.</p>
-                    <div class="social-links">
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <h6>Echhapa News</h6>
+                    <p style="color: #cccccc; font-size: 0.9rem; line-height: 1.5;">Your trusted source for breaking news, in-depth analysis, and comprehensive coverage of global events.</p>
+                    <div class="social-icons">
                         <a href="#"><i class="fab fa-facebook"></i></a>
                         <a href="#"><i class="fab fa-twitter"></i></a>
                         <a href="#"><i class="fab fa-instagram"></i></a>
                         <a href="#"><i class="fab fa-linkedin"></i></a>
-                        <a href="#"><i class="fab fa-youtube"></i></a>
                     </div>
                 </div>
                 <div class="col-lg-2 col-md-6 mb-4">
-                    <h6 class="fw-bold mb-3">Quick Links</h6>
-                    <ul class="list-unstyled">
-                        <li class="mb-2"><a href="/" class="text-light opacity-75 text-decoration-none">Home</a></li>
-                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">About Us</a></li>
-                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Contact</a></li>
-                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Privacy Policy</a></li>
+                    <h6>Sections</h6>
+                    <ul style="list-style: none; padding: 0; margin: 0;">
+                        <li style="margin-bottom: 8px;"><a href="#">World News</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Politics</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Business</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Technology</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Sports</a></li>
                     </ul>
                 </div>
                 <div class="col-lg-2 col-md-6 mb-4">
-                    <h6 class="fw-bold mb-3">Categories</h6>
-                    <ul class="list-unstyled">
-                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">World News</a></li>
-                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Technology</a></li>
-                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Business</a></li>
-                        <li class="mb-2"><a href="#" class="text-light opacity-75 text-decoration-none">Sports</a></li>
+                    <h6>Company</h6>
+                    <ul style="list-style: none; padding: 0; margin: 0;">
+                        <li style="margin-bottom: 8px;"><a href="#">About Us</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Contact</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Careers</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Privacy Policy</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Terms of Service</a></li>
                     </ul>
                 </div>
-                <div class="col-lg-4 mb-4">
-                    <h6 class="fw-bold mb-3">Contact Info</h6>
-                    <div class="text-light opacity-75">
-                        <p class="mb-2"><i class="fas fa-envelope me-2"></i>contact@echhapa.com</p>
-                        <p class="mb-2"><i class="fas fa-phone me-2"></i>+1 (555) 123-4567</p>
-                        <p class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>123 News Street, Media City</p>
+                <div class="col-lg-2 col-md-6 mb-4">
+                    <h6>Support</h6>
+                    <ul style="list-style: none; padding: 0; margin: 0;">
+                        <li style="margin-bottom: 8px;"><a href="#">Help Center</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Newsletter</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">RSS Feeds</a></li>
+                        <li style="margin-bottom: 8px;"><a href="#">Mobile App</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-3 col-md-12">
+                    <h6>Contact Info</h6>
+                    <div style="color: #cccccc; font-size: 0.9rem;">
+                        <p style="margin-bottom: 8px;"><i class="fas fa-envelope me-2"></i>contact@echhapa.com</p>
+                        <p style="margin-bottom: 8px;"><i class="fas fa-phone me-2"></i>+1 (555) 123-4567</p>
+                        <p style="margin-bottom: 0;"><i class="fas fa-map-marker-alt me-2"></i>123 News Street, Media City</p>
                     </div>
                 </div>
             </div>
-            <hr class="my-4 opacity-25">
+            <hr style="border-color: #333333; margin: 30px 0 20px;">
             <div class="row align-items-center">
                 <div class="col-md-6">
-                    <p class="text-light opacity-75 mb-0">&copy; 2025 Echhapa News. All rights reserved.</p>
+                    <p style="color: #cccccc; font-size: 0.85rem; margin: 0;">&copy; 2025 Echhapa News. All rights reserved.</p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <p class="text-light opacity-75 mb-0">
-                        Powered by Flask & MySQL | 
-                        <i class="fas fa-heart text-danger"></i> Made with passion
+                    <p style="color: #cccccc; font-size: 0.85rem; margin: 0;">
+                        Powered by Flask & MySQL
                     </p>
                 </div>
             </div>
