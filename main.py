@@ -6,8 +6,8 @@ Converted from PHP to demonstrate the news portal functionality
 
 from flask import Flask, render_template_string, request, redirect, url_for, flash, session
 import os
-import psycopg2
-import psycopg2.extras
+import pymysql
+import pymysql.cursors
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
@@ -18,12 +18,14 @@ app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-change-in-producti
 def get_db():
     """Get database connection"""
     try:
-        conn = psycopg2.connect(
-            host=os.environ.get('PGHOST', 'localhost'),
-            port=os.environ.get('PGPORT', '5432'),
-            database=os.environ.get('PGDATABASE', 'postgres'),
-            user=os.environ.get('PGUSER', 'postgres'),
-            password=os.environ.get('PGPASSWORD', '')
+        conn = pymysql.connect(
+            host=os.environ.get('MYSQL_HOST', 'localhost'),
+            port=int(os.environ.get('MYSQL_PORT', '3306')),
+            database=os.environ.get('MYSQL_DATABASE', 'echhapa'),
+            user=os.environ.get('MYSQL_USER', 'root'),
+            password=os.environ.get('MYSQL_PASSWORD', ''),
+            charset='utf8mb4',
+            cursorclass=pymysql.cursors.DictCursor
         )
         return conn
     except Exception as e:

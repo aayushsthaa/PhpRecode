@@ -2,7 +2,7 @@ modules = ["php-8.2", "nodejs-20", "python-3.11", "web"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["mysql80", "openssl", "php", "php82Extensions.gd", "php82Extensions.mbstring", "php82Extensions.pdo", "php82Extensions.pdo_mysql", "php82Extensions.pdo_pgsql", "php82Extensions.pgsql", "postgresql"]
+packages = ["cargo", "libiconv", "libxcrypt", "mysql80", "openssl", "php", "php82Extensions.gd", "php82Extensions.mbstring", "php82Extensions.pdo", "php82Extensions.pdo_mysql", "php82Extensions.pdo_pgsql", "php82Extensions.pgsql", "pkg-config", "postgresql", "rustc"]
 
 [deployment]
 deploymentTarget = "autoscale"
