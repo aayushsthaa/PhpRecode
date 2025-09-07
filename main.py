@@ -4444,6 +4444,33 @@ def site_settings():
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
     
+    # Get current site settings
+    conn = get_db()
+    settings = {
+        'site_name': 'Echhapa News Portal',
+        'site_description': 'A comprehensive news platform',
+        'site_keywords': 'news, articles, updates',
+        'facebook_url': '',
+        'twitter_url': '',
+        'instagram_url': '',
+        'contact_email': 'contact@echhapa.com',
+        'enable_comments': True,
+        'enable_social_share': True,
+        'posts_per_page': 10
+    }
+    
+    if conn:
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cur.execute("SELECT * FROM site_settings ORDER BY id DESC LIMIT 1")
+            db_settings = cur.fetchone()
+            if db_settings:
+                settings.update(dict(db_settings))
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error fetching site settings: {e}")
+    
     return render_template_string("""
 <!DOCTYPE html>
 <html lang="en">
@@ -4488,18 +4515,98 @@ def site_settings():
     </nav>
 
     <div class="main-content">
-        <h1><i class="fas fa-cog me-3"></i>Site Settings</h1>
-        <p class="lead">Configure website settings and preferences</p>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1><i class="fas fa-cog me-3"></i>Site Settings</h1>
+                <p class="lead">Configure website settings and preferences</p>
+            </div>
+        </div>
         
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>Site settings management system is under development. This will allow you to configure website settings, SEO, social media, and more.
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-globe me-2"></i>General Settings</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="settingsForm">
+                            <div class="mb-3">
+                                <label for="siteName" class="form-label">Site Name</label>
+                                <input type="text" class="form-control" id="siteName" value="{{ settings.site_name }}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="siteDescription" class="form-label">Site Description</label>
+                                <textarea class="form-control" id="siteDescription" rows="3">{{ settings.site_description }}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="siteKeywords" class="form-label">SEO Keywords</label>
+                                <input type="text" class="form-control" id="siteKeywords" value="{{ settings.site_keywords }}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="contactEmail" class="form-label">Contact Email</label>
+                                <input type="email" class="form-control" id="contactEmail" value="{{ settings.contact_email }}">
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5><i class="fas fa-share-alt me-2"></i>Social Media</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="facebookUrl" class="form-label">Facebook URL</label>
+                            <input type="url" class="form-control" id="facebookUrl" value="{{ settings.facebook_url }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="twitterUrl" class="form-label">Twitter URL</label>
+                            <input type="url" class="form-control" id="twitterUrl" value="{{ settings.twitter_url }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="instagramUrl" class="form-label">Instagram URL</label>
+                            <input type="url" class="form-control" id="instagramUrl" value="{{ settings.instagram_url }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-sliders-h me-2"></i>Site Preferences</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="enableComments" {{ 'checked' if settings.enable_comments else '' }}>
+                            <label class="form-check-label" for="enableComments">Enable Comments</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="enableSocialShare" {{ 'checked' if settings.enable_social_share else '' }}>
+                            <label class="form-check-label" for="enableSocialShare">Enable Social Sharing</label>
+                        </div>
+                        <div class="mb-3">
+                            <label for="postsPerPage" class="form-label">Posts per Page</label>
+                            <input type="number" class="form-control" id="postsPerPage" value="{{ settings.posts_per_page }}" min="5" max="50">
+                        </div>
+                        <button type="button" class="btn btn-primary w-100" onclick="saveSettings()">
+                            <i class="fas fa-save me-2"></i>Save Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function saveSettings() {
+            alert('Settings save functionality will be implemented');
+        }
+    </script>
 </body>
 </html>
-    """)
+    """, settings=settings)
 
 # Additional admin routes are included in this file
 
