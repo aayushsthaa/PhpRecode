@@ -6,7 +6,7 @@ packages = ["cargo", "freetype", "lcms2", "libiconv", "libimagequant", "libjpeg"
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
+run = ["php", "-S", "0.0.0.0:5000", "server.php"]
 
 [workflows]
 runButton = "Project"
