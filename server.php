@@ -110,7 +110,16 @@ else {
 $file = $documentRoot . $route;
 
 if (file_exists($file)) {
+    // Set the working directory to match the included file's directory
+    $originalCwd = getcwd();
+    $fileDir = dirname($file);
+    chdir($fileDir);
+    
+    // Include the file
     include $file;
+    
+    // Restore original working directory
+    chdir($originalCwd);
 } else {
     http_response_code(404);
     echo "404 - Page not found";
