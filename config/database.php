@@ -25,6 +25,8 @@ function createTables($pdo) {
             email VARCHAR(100) UNIQUE NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
             role VARCHAR(20) DEFAULT 'author' CHECK (role IN ('admin', 'editor', 'author')),
+            is_active BOOLEAN DEFAULT TRUE,
+            last_login TIMESTAMP DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",

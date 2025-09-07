@@ -14,6 +14,9 @@ require_once 'database.php';
 // Include helper functions
 require_once dirname(__DIR__) . '/includes/functions.php';
 
+// Include authentication functions
+require_once dirname(__DIR__) . '/includes/auth.php';
+
 // Set timezone
 date_default_timezone_set('UTC');
 

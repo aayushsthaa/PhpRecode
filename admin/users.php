@@ -22,6 +22,7 @@ if ($_POST && isset($_POST['action'])) {
             $error = 'Failed to create user. Username or email might already exist.';
         }
     } elseif ($action === 'update') {
+        global $pdo;
         $userId = intval($_POST['user_id']);
         $stmt = $pdo->prepare("UPDATE users SET username = ?, email = ?, role = ? WHERE id = ?");
         if ($stmt->execute([$username, $email, $role, $userId])) {
@@ -34,6 +35,7 @@ if ($_POST && isset($_POST['action'])) {
 
 // Handle user deletion
 if (isset($_GET['delete'])) {
+    global $pdo;
     $userId = intval($_GET['delete']);
     if ($userId != $_SESSION['user_id']) { // Prevent self-deletion
         $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
@@ -48,6 +50,7 @@ if (isset($_GET['delete'])) {
 }
 
 // Get all users
+global $pdo;
 $stmt = $pdo->query("SELECT u.*, COUNT(a.id) as article_count 
                     FROM users u 
                     LEFT JOIN articles a ON u.id = a.author_id 

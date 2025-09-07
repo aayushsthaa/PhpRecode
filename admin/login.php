@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = 'Please fill in all fields';
     } else {
         try {
+            global $pdo;
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND is_active = TRUE");
             $stmt->execute([$username]);
             $user = $stmt->fetch();
