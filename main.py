@@ -3355,19 +3355,39 @@ def add_article():
 
 @app.route('/admin/layout')
 def layout_management():
-    """Advanced Layout Management System"""
+    """Category-Specific Layout Management System"""
     if 'user_id' not in session:
         return redirect(url_for('admin_login'))
     
-    # Get available categories for layout customization
+    # Get categories with their subcategories and current layout settings
     conn = get_db()
     categories = []
-    current_layout = 'ekantipur_style'  # Default layout
     
     if conn:
         try:
             cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-            cur.execute("SELECT * FROM categories WHERE is_active = TRUE ORDER BY sort_order, name")
+            # Get main categories with their subcategories
+            cur.execute("""
+                SELECT 
+                    c.id, c.name, c.slug, c.sort_order, c.is_active,
+                    c.layout_type,
+                    COALESCE(
+                        json_agg(
+                            json_build_object(
+                                'id', sc.id,
+                                'name', sc.name,
+                                'slug', sc.slug,
+                                'layout_type', sc.layout_type
+                            ) ORDER BY sc.sort_order
+                        ) FILTER (WHERE sc.id IS NOT NULL),
+                        '[]'::json
+                    ) as subcategories
+                FROM categories c
+                LEFT JOIN categories sc ON sc.parent_id = c.id AND sc.is_active = TRUE
+                WHERE c.parent_id IS NULL AND c.is_active = TRUE
+                GROUP BY c.id, c.name, c.slug, c.sort_order, c.is_active, c.layout_type
+                ORDER BY c.sort_order, c.name
+            """)
             categories = cur.fetchall()
             cur.close()
             conn.close()
@@ -3398,39 +3418,45 @@ def layout_management():
         .nav-link:hover, .nav-link.active { color: white; background: var(--primary-color); border-left-color: var(--accent-color); }
         .nav-link i { width: 20px; margin-right: 0.75rem; }
         
-        .layout-preview {
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-            cursor: pointer;
-            min-height: 200px;
-        }
-        .layout-preview:hover { transform: translateY(-2px); }
-        .layout-preview.active { border: 3px solid var(--accent-color); }
-        .layout-preview-header { background: #333; color: white; padding: 0.5rem; font-size: 0.75rem; }
-        .layout-sections { padding: 1rem; }
-        .layout-section { margin-bottom: 0.5rem; height: 15px; border-radius: 3px; }
-        .header-section { background: #dc3545; }
-        .nav-section { background: #6c757d; }
-        .featured-section { background: #007bff; height: 30px; }
-        .category-section { background: #28a745; }
-        .sidebar-section { background: #ffc107; }
-        .footer-section { background: #6f42c1; }
-        
-        .category-item {
+        .layout-template {
             background: white;
             border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: between;
-            align-items: center;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            min-height: 120px;
+            border: 2px solid transparent;
         }
+        .layout-template:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+        .layout-template.selected { border-color: var(--accent-color); background: #f0f8ff; }
+        .layout-header { background: #333; color: white; padding: 0.5rem; font-size: 0.75rem; font-weight: 500; }
+        .layout-preview { padding: 0.75rem; }
+        .layout-item { margin-bottom: 0.25rem; height: 8px; border-radius: 2px; }
+        .main-item { background: #007bff; height: 20px; }
+        .list-item { background: #28a745; }
+        .card-item { background: #ffc107; height: 15px; }
+        .text-item { background: #6c757d; height: 6px; }
+        
+        .category-section {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-left: 4px solid var(--accent-color);
+        }
+        
+        .subcategory {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-left: 3px solid #dee2e6;
+        }
+        
+        .layout-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
         .drag-handle { cursor: move; color: #6c757d; margin-right: 0.5rem; }
-        .sortable-list { min-height: 50px; }
     </style>
 </head>
 <body>
@@ -3455,84 +3481,100 @@ def layout_management():
     <div class="main-content">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h1><i class="fas fa-th-large me-3"></i>Layout Management</h1>
-                <p class="lead mb-0">Customize homepage layout and category arrangement</p>
+                <h1><i class="fas fa-th-large me-3"></i>Category Layout Management</h1>
+                <p class="lead mb-0">Choose different layout styles for each category section</p>
             </div>
-            <button class="btn btn-primary" onclick="saveLayout()"><i class="fas fa-save me-2"></i>Save Layout</button>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="saveAllLayouts()"><i class="fas fa-save me-2"></i>Save All Layouts</button>
+                <a href="{{ url_for('categories_management') }}" class="btn btn-outline-primary"><i class="fas fa-folder me-2"></i>Manage Categories</a>
+            </div>
         </div>
         
+        <!-- Available Layout Templates -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-palette me-2"></i>Layout Templates</h5>
+                        <h5 class="mb-0"><i class="fas fa-th me-2"></i>Available Layout Templates</h5>
+                        <small class="text-muted">Each category can have its own layout style</small>
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="layout-preview active" onclick="selectLayout('ekantipur_style')">
-                                    <div class="layout-preview-header">Ekantipur Style (Current)</div>
-                                    <div class="layout-sections">
-                                        <div class="layout-section header-section"></div>
-                                        <div class="layout-section nav-section"></div>
-                                        <div class="layout-section featured-section"></div>
-                                        <div class="row">
-                                            <div class="col-8">
-                                                <div class="layout-section category-section"></div>
-                                                <div class="layout-section category-section"></div>
-                                                <div class="layout-section category-section"></div>
-                                            </div>
-                                            <div class="col-4">
-                                                <div class="layout-section sidebar-section"></div>
-                                                <div class="layout-section sidebar-section"></div>
-                                            </div>
+                        <div class="layout-grid" id="layoutTemplates">
+                            <div class="layout-template" data-layout="featured-main-list">
+                                <div class="layout-header">Featured + List View</div>
+                                <div class="layout-preview">
+                                    <div class="main-item layout-item"></div>
+                                    <div class="list-item layout-item"></div>
+                                    <div class="list-item layout-item"></div>
+                                    <div class="list-item layout-item"></div>
+                                    <div class="list-item layout-item"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="layout-template" data-layout="three-cards">
+                                <div class="layout-header">Three Cards Row</div>
+                                <div class="layout-preview">
+                                    <div class="d-flex gap-1">
+                                        <div class="card-item layout-item flex-fill"></div>
+                                        <div class="card-item layout-item flex-fill"></div>
+                                        <div class="card-item layout-item flex-fill"></div>
+                                    </div>
+                                    <div class="text-item layout-item"></div>
+                                    <div class="text-item layout-item"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="layout-template" data-layout="two-main-sidebar">
+                                <div class="layout-header">Two Main + Sidebar</div>
+                                <div class="layout-preview">
+                                    <div class="d-flex gap-1">
+                                        <div style="flex: 2;">
+                                            <div class="main-item layout-item"></div>
+                                            <div class="main-item layout-item"></div>
                                         </div>
-                                        <div class="layout-section footer-section"></div>
+                                        <div style="flex: 1;">
+                                            <div class="list-item layout-item"></div>
+                                            <div class="list-item layout-item"></div>
+                                            <div class="list-item layout-item"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="layout-preview" onclick="selectLayout('magazine_style')">
-                                    <div class="layout-preview-header">Magazine Style</div>
-                                    <div class="layout-sections">
-                                        <div class="layout-section header-section"></div>
-                                        <div class="row">
-                                            <div class="col-6">
-                                                <div class="layout-section featured-section"></div>
-                                            </div>
-                                            <div class="col-6">
-                                                <div class="layout-section featured-section"></div>
-                                            </div>
-                                        </div>
-                                        <div class="row">
-                                            <div class="col-4"><div class="layout-section category-section"></div></div>
-                                            <div class="col-4"><div class="layout-section category-section"></div></div>
-                                            <div class="col-4"><div class="layout-section category-section"></div></div>
-                                        </div>
-                                        <div class="layout-section footer-section"></div>
+                            
+                            <div class="layout-template" data-layout="grid-layout">
+                                <div class="layout-header">Grid Layout</div>
+                                <div class="layout-preview">
+                                    <div class="d-flex gap-1 mb-1">
+                                        <div class="card-item layout-item flex-fill"></div>
+                                        <div class="card-item layout-item flex-fill"></div>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        <div class="card-item layout-item flex-fill"></div>
+                                        <div class="card-item layout-item flex-fill"></div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="layout-preview" onclick="selectLayout('classic_blog')">
-                                    <div class="layout-preview-header">Classic Blog</div>
-                                    <div class="layout-sections">
-                                        <div class="layout-section header-section"></div>
-                                        <div class="layout-section featured-section"></div>
-                                        <div class="row">
-                                            <div class="col-9">
-                                                <div class="layout-section category-section"></div>
-                                                <div class="layout-section category-section"></div>
-                                                <div class="layout-section category-section"></div>
-                                                <div class="layout-section category-section"></div>
-                                            </div>
-                                            <div class="col-3">
-                                                <div class="layout-section sidebar-section"></div>
-                                                <div class="layout-section sidebar-section"></div>
-                                                <div class="layout-section sidebar-section"></div>
-                                            </div>
-                                        </div>
-                                        <div class="layout-section footer-section"></div>
+                            
+                            <div class="layout-template" data-layout="list-only">
+                                <div class="layout-header">List Only</div>
+                                <div class="layout-preview">
+                                    <div class="list-item layout-item"></div>
+                                    <div class="list-item layout-item"></div>
+                                    <div class="list-item layout-item"></div>
+                                    <div class="list-item layout-item"></div>
+                                    <div class="list-item layout-item"></div>
+                                    <div class="list-item layout-item"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="layout-template" data-layout="magazine-style">
+                                <div class="layout-header">Magazine Style</div>
+                                <div class="layout-preview">
+                                    <div class="main-item layout-item"></div>
+                                    <div class="d-flex gap-1">
+                                        <div class="card-item layout-item flex-fill"></div>
+                                        <div class="card-item layout-item flex-fill"></div>
+                                        <div class="card-item layout-item flex-fill"></div>
                                     </div>
                                 </div>
                             </div>
@@ -3542,37 +3584,92 @@ def layout_management():
             </div>
         </div>
 
+        <!-- Category Layout Management -->
         <div class="row">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Category Order & Visibility</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label">Drag to reorder categories on homepage:</label>
+            <div class="col-12">
+                {% for category in categories %}
+                <div class="category-section" data-category-id="{{ category.id }}">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h4 class="mb-1"><i class="fas fa-folder me-2 text-primary"></i>{{ category.name }}</h4>
+                            <p class="text-muted mb-0">Configure layout and subcategories for this category</p>
                         </div>
-                        <div id="categoryList" class="sortable-list">
-                            {% for category in categories %}
-                            <div class="category-item" data-id="{{ category.id }}">
-                                <div class="d-flex align-items-center flex-grow-1">
-                                    <i class="fas fa-grip-vertical drag-handle"></i>
-                                    <i class="fas fa-folder me-2 text-primary"></i>
-                                    <span class="me-2">{{ category.name }}</span>
-                                    <small class="text-muted">({{ category.slug }})</small>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="toggleCategory('{{ category.id }}')">
+                                <i class="fas fa-eye"></i> Visible
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="addSubcategory('{{ category.id }}')">
+                                <i class="fas fa-plus"></i> Add Subcategory
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label"><strong>Current Layout:</strong></label>
+                            <div class="current-layout mb-3">
+                                <div class="layout-template selected" data-layout="{{ category.layout_type or 'featured-main-list' }}" onclick="openLayoutSelector('{{ category.id }}')">
+                                    <div class="layout-header">{{ category.layout_type or 'Featured + List View' }}</div>
+                                    <div class="layout-preview">
+                                        <div class="main-item layout-item"></div>
+                                        <div class="list-item layout-item"></div>
+                                        <div class="list-item layout-item"></div>
+                                        <div class="list-item layout-item"></div>
+                                    </div>
                                 </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="cat{{ category.id }}" checked>
-                                    <label class="form-check-label" for="cat{{ category.id }}">
-                                        Show on Homepage
-                                    </label>
-                                </div>
+                                <small class="text-muted">Click to change layout style</small>
                             </div>
-                            {% endfor %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label"><strong>Settings:</strong></label>
+                            <div class="mb-2">
+                                <label class="form-label">Articles to Show:</label>
+                                <select class="form-select form-select-sm" data-setting="articles-count" data-category="{{ category.id }}">
+                                    <option value="3">3 articles</option>
+                                    <option value="4" selected>4 articles</option>
+                                    <option value="5">5 articles</option>
+                                    <option value="6">6 articles</option>
+                                </select>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="showImages{{ category.id }}" checked>
+                                <label class="form-check-label" for="showImages{{ category.id }}">Show images</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="showExcerpts{{ category.id }}">
+                                <label class="form-check-label" for="showExcerpts{{ category.id }}">Show excerpts</label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label"><strong>Subcategories:</strong></label>
+                            <div class="subcategories-list">
+                                {% if category.subcategories %}
+                                    {% for subcategory in category.subcategories %}
+                                    <div class="subcategory" data-subcategory-id="{{ subcategory.id }}">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="fas fa-folder-open me-1 text-secondary"></i>
+                                                <span>{{ subcategory.name }}</span>
+                                            </div>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="editSubcategory('{{ subcategory.id }}')"><i class="fas fa-edit"></i></button>
+                                                <button class="btn btn-outline-danger" onclick="deleteSubcategory('{{ subcategory.id }}')"><i class="fas fa-trash"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-muted">No subcategories yet</div>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
+        </div>
             
             <div class="col-md-6">
                 <div class="card">
